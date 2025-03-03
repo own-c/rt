@@ -60,7 +60,7 @@
 				{/if}
 			</div>
 
-			<div class="bg-secondary min-w-1/5 max-w-1/5 h-full" hidden={!showChat}>
+			<div class="min-w-1/5 max-w-1/5 h-full" hidden={!showChat}>
 				<Chat />
 			</div>
 		</main>

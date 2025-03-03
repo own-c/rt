@@ -113,12 +113,12 @@
 	<div
 		bind:this={chatContainer}
 		onscroll={handleScroll}
-		class="bg-secondary-900 overflow-y-auto border-l-2 border-white/20 chat-container overflow-x-hidden h-full"
+		class="bg-neutral-900 overflow-y-auto border-l-2 border-white/20 chat-container overflow-x-hidden h-full"
 		style="height: calc(100vh - 2.0rem); max-height: calc(100vh - 2.0rem);"
 	>
 		{#each messages as message, index (index)}
 			<!-- eslint-disable svelte/no-at-html-tags-->
-			<div class="text-pretty hover:bg-secondary-600 w-full px-2 whitespace-pre-wrap break-words">
+			<div class="text-pretty hover:bg-neutral-600 w-full px-2 whitespace-pre-wrap break-words">
 				<span class="font-bold {getMemberColor(message.u)}">{message.u}</span><!--
       --><span
 					class="text-white">:&nbsp;</span

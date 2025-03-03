@@ -29,7 +29,7 @@
 	});
 </script>
 
-<header data-tauri-drag-region class="flex w-full bg-primary-800 min-h-8">
+<header data-tauri-drag-region class="flex w-full bg-violet-800 min-h-8">
 	{#if currentStream.username && currentStream.title}
 		<div title={currentStream.title} class="flex-1 text-center text-lg font-bold">
 			{currentStream.username}
@@ -44,7 +44,7 @@
 				aria-label="Expand chat"
 				title={showChat ? 'Collapse chat' : 'Expand chat'}
 				onclick={() => updateChatToggle()}
-				class="px-2 hover:bg-secondary-400"
+				class="px-2 hover:bg-neutral-700"
 			>
 				{#if showChat}
 					<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 2048 2048"
@@ -70,7 +70,7 @@
 			aria-label="Minimize"
 			title="Minimize"
 			onclick={() => appWindow.minimize()}
-			class="px-2 hover:bg-secondary-400"
+			class="px-2 hover:bg-neutral-700"
 		>
 			<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 2048 2048"
 				><path fill="currentColor" d="M2048 819v205H0V819z" /></svg
@@ -81,7 +81,7 @@
 			aria-label="Maximize"
 			title={maximized ? 'Restore window' : 'Maximize window'}
 			onclick={() => appWindow.toggleMaximize()}
-			class="px-2 hover:bg-secondary-400"
+			class="px-2 hover:bg-neutral-700"
 		>
 			{#if maximized}
 				<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 2048 2048"

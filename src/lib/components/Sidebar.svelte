@@ -66,13 +66,13 @@
 	});
 </script>
 
-<aside class="flex flex-col items-center h-full min-w-12 bg-secondary-800 gap-2 user-select-none">
+<aside class="flex flex-col items-center h-full min-w-12 bg-neutral-800 gap-2 user-select-none">
 	<div class="flex flex-col items-center w-full mt-2">
 		<button
 			aria-label="Add user"
 			title="Add user"
 			onclick={toggleInput}
-			class="flex flex-col items-center cursor-pointer hover:bg-secondary-600 w-full py-2"
+			class="flex flex-col items-center cursor-pointer hover:bg-neutral-600 w-full py-2"
 		>
 			<svg xmlns="http://www.w3.org/2000/svg" width="1.5em" height="1.5em" viewBox="0 0 2048 2048"
 				><path
@@ -89,7 +89,7 @@
 			onclick={async () => await refreshUsersAndUpdate()}
 			class="flex flex-col items-center cursor-pointer w-full py-2 {loading
 				? 'opacity-50'
-				: 'hover:bg-secondary-600'}"
+				: 'hover:bg-neutral-600'}"
 		>
 			<svg xmlns="http://www.w3.org/2000/svg" width="1.5em" height="1.5em" viewBox="0 0 2048 2048"
 				><path
@@ -112,7 +112,7 @@
 				id={user.username}
 				title={user.username}
 				disabled={!usersMap || Object.keys(usersMap).length === 0 || loading}
-				class="flex flex-col items-center w-full cursor-pointer hover:bg-secondary-600 py-1 {!usersMap ||
+				class="flex flex-col items-center w-full cursor-pointer hover:bg-neutral-600 py-1 {!usersMap ||
 				Object.keys(usersMap).length === 0 ||
 				loading
 					? 'opacity-50'
@@ -173,10 +173,10 @@
 {#if showContextMenu}
 	<div
 		bind:this={contextMenuEl}
-		class="flex flex-col gap-1 absolute shadow-lg rounded z-50 bg-secondary-400 py-1"
+		class="flex flex-col gap-1 absolute shadow-lg rounded z-50 bg-neutral-700 py-1"
 		style="top: {rightClickPos.y}px; left: {rightClickPos.x + 10}px;"
 	>
-		<button class="hover:bg-secondary-600 px-2 cursor-pointer w-full" onclick={remove}>
+		<button class="hover:bg-neutral-500 px-2 cursor-pointer w-full" onclick={remove}>
 			Remove {rightClickedUser}
 		</button>
 	</div>
