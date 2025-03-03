@@ -1,58 +1,54 @@
-export let stream = $state({
-    username: "",
-    title: "",
-    url: "",
-})
+import { fetch } from '@tauri-apps/plugin-http';
 
-let socket;
+import { addUserEmotes } from './Emotes.svelte';
+import { joinChat } from './Chat.svelte';
+import { setUser, allUsers } from './Users.svelte';
 
-export function initChat(newHandler) {
-    socket = new WebSocket("wss://irc-ws.chat.twitch.tv:443");
+export let currentStream = $state({
+	username: '',
+	title: '',
+	live: false,
+	url: ''
+});
 
-    socket.addEventListener("open", function (event) {
-        socket.send("PASS SCHMOOPIIE");
-        socket.send("NICK justinfan12345");
-    });
+export async function switchStream(username) {
+	if (!username) {
+		console.log('No username');
+		return;
+	}
 
-    socket.addEventListener("message", function (event) {
-        if (event.data.startsWith("PING")) {
-            return;
-        }
+	const response = await fetch('http://127.0.0.1:3030/user/' + username);
 
-        const message = parseIRC(event.data);
-        if (!message || !message.u || !message.m) return;
+	if (response.status !== 200) {
+		const parsed = await response.json();
+		console.log('Error fetching', response.statusText, parsed);
 
-        newHandler(message);
-    });
+		if (!allUsers[username]) {
+			let newUser = {
+				username: username,
+				live: false
+			};
+
+			await setUser(newUser);
+		}
+
+		return;
+	}
+
+	const data = await response.json();
+
+	await addUserEmotes(username, data.emotes);
+
+	joinChat(data.username);
+	currentStream.username = data.username;
+	currentStream.title = data.title;
+	currentStream.url = data.url;
+
+	let newUser = {
+		username: username,
+		avatar: data.avatar,
+		live: true
+	};
+
+	await setUser(newUser);
 }
-
-export function setNewStream(newStream) {
-    joinChat(newStream.username);
-    stream.username = newStream.username;
-    stream.title = newStream.title;
-    stream.url = newStream.url;
-}
-
-export function joinChat(newChatChannel) {
-    if (stream.username && stream.username !== newChatChannel) {
-        socket.send("PART #" + stream.username);
-    }
-
-    socket.send("JOIN #" + newChatChannel);
-}
-
-
-function parseIRC(message) {
-    const regex = /^:(\S+)!.+ PRIVMSG .+? :(.+?)$/m;
-    const match = message.match(regex);
-
-    if (match) {
-        return {
-            u: match[1],
-            m: match[2],
-        };
-    }
-
-    return null;
-}
-

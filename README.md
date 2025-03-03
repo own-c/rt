@@ -21,7 +21,7 @@ rustup component add llvm-tools
 - Backend (`src-tauri`): [Rust](https://www.rust-lang.org/), [Tauri](https://tauri.app/). Using [axum](https://github.com/tokio-rs/axum).
 
 Data is stored using `tauri-plugin-store`.
-  
+
 ## TODO
 
 - Add global Twitch emotes and fetch the user emotes.
@@ -31,4 +31,3 @@ Data is stored using `tauri-plugin-store`.
 - Refactor frontend code, looks horrible and confusing, preferably use lang="ts".
 - Button to show current stream info (game, viewcount, etc).
 - Logs in a file and/or a window/dialog.
-- Improve check for deep links and urls, input only asks for username, not a full url, the deep link only works if the url starts with `www.twitch.tv`, does not work with `rt://echo_esports` or  `rt://twitch.tv/echo_esports`.

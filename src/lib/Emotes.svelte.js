@@ -1,24 +1,26 @@
-export let emotes = $state({});
-export let regex = $state({});
+export let emotesMap = $state({});
+export let regexMap = $state({});
 
-export async function addEmotes(username, newEmotes) {
-    if (!newEmotes) return;
-    if (emotes[username]) return;
+const escapeEmoteReg = new RegExp('[.*+?^${}()|[\\]\\\\]', 'g');
 
-    emotes[username] = {};
+export async function addUserEmotes(username, newEmotes) {
+	if (!newEmotes) return;
+	if (emotesMap[username]) return;
 
-    for (let i = 0; i < newEmotes.length; i++) {
-        const emote = newEmotes[i];
-        emotes[username][emote.name] = emote;
-    }
+	emotesMap[username] = {};
 
-    const emoteNames = newEmotes.map((emote) => emote.name);
+	for (let i = 0; i < newEmotes.length; i++) {
+		const emote = newEmotes[i];
+		emotesMap[username][emote.name] = emote;
+	}
 
-    if (emoteNames.length === 0) {
-        regex[username] = null;
-        return;
-    }
+	const emoteNames = newEmotes.map((emote) => emote.name);
 
-    const escapedEmoteNames = emoteNames.map((str) => str.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'));
-    regex[username] = new RegExp(`\\b(${escapedEmoteNames.join("|")})\\b`, "g");
+	if (emoteNames.length === 0) {
+		regexMap[username] = null;
+		return;
+	}
+
+	const escapedEmoteNames = emoteNames.map((name) => name.replace(escapeEmoteReg, '\\$&'));
+	regexMap[username] = new RegExp(`\\b(${escapedEmoteNames.join('|')})\\b`, 'g');
 }

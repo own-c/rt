@@ -1,103 +1,70 @@
-<script>
-    import { onMount } from "svelte";
+<script lang="ts">
+	import { onMount } from 'svelte';
 
-    import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
-    import { fetch } from "@tauri-apps/plugin-http";
+	import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
 
-    import Player from "$lib/components/Player.svelte";
-    import Titlebar from "$lib/components/Titlebar.svelte";
-    import Sidebar from "$lib/components/Sidebar.svelte";
-    import Chat from "$lib/components/Chat.svelte";
+	import Player from '$lib/components/Player.svelte';
+	import Titlebar from '$lib/components/Titlebar.svelte';
+	import Sidebar from '$lib/components/Sidebar.svelte';
+	import Chat from '$lib/components/Chat.svelte';
 
-    import { loadUsers, setUser, users } from "$lib/Users.svelte";
-    import { stream, setNewStream } from "$lib/Stream.svelte";
-    import { addEmotes } from "$lib/Emotes.svelte";
+	import { initUsers } from '$lib/Users.svelte';
+	import { switchStream, currentStream } from '$lib/Stream.svelte';
 
-    let showChat = $state(false);
+	let showChat = $state(false);
+	function toggleChat() {
+		showChat = !showChat;
+	}
 
-    async function getStream(username) {
-        switch (username.split("/").length) {
-            case 2:
-                username = username.split("/")[1];
-                break;
-            case 4:
-                username = username.split("/")[3];
-                break;
-            default:
-                username = username;
-                break;
-        }
+	onMount(async () => {
+		await initUsers();
 
-        const response = await fetch("http://127.0.0.1:3030/user/" + username);
+		await onOpenUrl(async (urls) => {
+			const twitchRegex = new RegExp('twitch.tv/([a-zA-Z0-9_]+)');
+			let username = '';
 
-        if (response.status !== 200) {
-            const parsed = await response.json();
-            console.log("Error fetching", response.statusText, parsed);
+			if (urls && urls[0]) {
+				const url = urls[0];
 
-            if (!users[username]) {
-                let newUser = {
-                    username: username,
-                    live: false,
-                };
+				const matches = url.match(twitchRegex);
+				if (matches && matches[1]) {
+					username = matches[1];
+				} else {
+					const parts = url.replace('rt://', '').trim().split('/');
+					username = parts[0];
+				}
 
-                await setUser(newUser);
-            }
-
-            return;
-        }
-
-        const data = await response.json();
-
-        await addEmotes(username, data.emotes);
-
-        setNewStream(data);
-
-        let newUser = {
-            username: username,
-            avatar: data.avatar,
-            live: true,
-        };
-
-        await setUser(newUser);
-    }
-
-    function toggleChat() {
-        showChat = !showChat;
-    }
-
-    onMount(async () => {
-        await loadUsers();
-
-        await onOpenUrl(async (urls) => {
-            const twitchRegex = /www.twitch.tv\/([a-zA-Z0-9_]+)/;
-            if (urls && urls[0] && twitchRegex.test(urls[0])) {
-                await getStream(urls[0]);
-            }
-        });
-    });
+				await switchStream(username);
+			}
+		});
+	});
 </script>
 
-<div
-    class="flex flex-col h-screen w-screen overflow-hidden bg-black text-white"
->
-    <Titlebar {toggleChat} />
+<div class="flex flex-col h-screen w-screen overflow-hidden bg-black text-white">
+	<Titlebar {toggleChat} />
 
-    <div class="flex min-h-full w-full">
-        <Sidebar {getStream} />
+	<div class="flex min-h-full w-full">
+		<Sidebar />
 
-        <main class="flex w-full h-full">
-            <div class="flex w-full h-full">
-                {#if stream.url}
-                    <Player />
-                {/if}
-            </div>
+		<main class="flex w-full h-full">
+			<div class="flex w-full h-full">
+				{#if currentStream.url}
+					<Player />
+				{:else}
+					<div class="flex flex-col items-center justify-center h-full w-full">
+						<div class="text-center">
+							<h1 class="text-4xl font-bold">No stream selected</h1>
+							<p class="text-lg">Select a stream from the sidebar</p>
+						</div>
+					</div>
+				{/if}
+			</div>
 
-            <div
-                class="bg-secondary min-w-1/5 max-w-1/5 h-full"
-                hidden={!showChat}
-            >
-                <Chat />
-            </div>
-        </main>
-    </div>
+			{#key showChat}
+				<div class="bg-secondary min-w-1/5 max-w-1/5 h-full" hidden={!showChat}>
+					<Chat />
+				</div>
+			{/key}
+		</main>
+	</div>
 </div>
