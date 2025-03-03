@@ -1,32 +1,38 @@
 import { fetch } from '@tauri-apps/plugin-http';
-import { load } from '@tauri-apps/plugin-store';
+import { load, Store } from '@tauri-apps/plugin-store';
 
-export let allUsers = $state({});
+export let usersMap: Record<string, User> = $state({});
 
-let tauriStore;
+export type User = {
+	username: string;
+	avatar: string;
+	live: boolean;
+};
+
+let tauriStore: Store;
 
 export async function initUsers() {
 	tauriStore = await load('users.json', { autoSave: false });
-	const data = await tauriStore.get('users');
+	const data = await tauriStore.get<Record<string, User>>('users');
 	if (!data) return;
 
 	for (const [key, value] of Object.entries(data)) {
-		allUsers[key] = value;
+		usersMap[key] = value;
 	}
 }
 
 async function saveUsers() {
-	await tauriStore.set('users', allUsers);
+	await tauriStore.set('users', usersMap);
 	await tauriStore.save();
 }
 
-export async function setUser(newUser) {
-	allUsers[newUser.username] = newUser;
+export async function setUser(newUser: User) {
+	usersMap[newUser.username] = newUser;
 	await saveUsers();
 }
 
 export async function refreshUsers() {
-	const usernames = Object.keys(allUsers);
+	const usernames = Object.keys(usersMap);
 	const response = await fetch('http://127.0.0.1:3030/live?usernames=' + usernames.join(','));
 
 	if (response.status !== 200) {
@@ -37,7 +43,7 @@ export async function refreshUsers() {
 
 	const data = await response.json();
 
-	Object.values(allUsers).forEach((user) => {
+	Object.values(usersMap).forEach((user) => {
 		if (data.includes(user.username)) {
 			user.live = true;
 		} else {
@@ -48,9 +54,9 @@ export async function refreshUsers() {
 	await saveUsers();
 }
 
-export async function removeUser(username) {
-	if (!allUsers[username]) return;
+export async function removeUser(username: string) {
+	if (!usersMap[username]) return;
 
-	delete allUsers[username];
+	delete usersMap[username];
 	await saveUsers();
 }

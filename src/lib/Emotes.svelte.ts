@@ -1,9 +1,16 @@
-export let emotesMap = $state({});
-export let regexMap = $state({});
+export let emotesMap: Record<string, Record<string, Emote>> = $state({});
+export let regexMap: Record<string, RegExp> = $state({});
+
+type Emote = {
+	name: string;
+	url: string;
+	width: number;
+	height: number;
+};
 
 const escapeEmoteReg = new RegExp('[.*+?^${}()|[\\]\\\\]', 'g');
 
-export async function addUserEmotes(username, newEmotes) {
+export async function addUserEmotes(username: string, newEmotes: Emote[]) {
 	if (!newEmotes) return;
 	if (emotesMap[username]) return;
 
@@ -17,7 +24,7 @@ export async function addUserEmotes(username, newEmotes) {
 	const emoteNames = newEmotes.map((emote) => emote.name);
 
 	if (emoteNames.length === 0) {
-		regexMap[username] = null;
+		regexMap[username] = new RegExp('');
 		return;
 	}
 

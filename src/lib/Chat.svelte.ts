@@ -1,8 +1,8 @@
 import { currentStream } from './Stream.svelte';
 
-let socket;
+let socket: WebSocket;
 
-export function initChat(newMessageHandler) {
+export function initChat(newMessageHandler: Function) {
 	socket = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
 
 	socket.addEventListener('open', function () {
@@ -22,7 +22,7 @@ export function initChat(newMessageHandler) {
 	});
 }
 
-export function joinChat(newChatChannel) {
+export function joinChat(newChatChannel: string) {
 	if (currentStream.username && currentStream.username !== newChatChannel) {
 		socket.send('PART #' + currentStream.username);
 	}
@@ -30,8 +30,9 @@ export function joinChat(newChatChannel) {
 	socket.send('JOIN #' + newChatChannel);
 }
 
-function parseIRC(message) {
-	const regex = new RegExp('^:(\\S+)!.+ PRIVMSG .+? :(.+?)$', 'm');
+const regex = new RegExp('^:(\\S+)!.+ PRIVMSG .+? :(.+?)$', 'm');
+
+function parseIRC(message: string) {
 	const match = message.match(regex);
 
 	if (!match) return null;

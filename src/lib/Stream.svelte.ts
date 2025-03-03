@@ -2,16 +2,23 @@ import { fetch } from '@tauri-apps/plugin-http';
 
 import { addUserEmotes } from './Emotes.svelte';
 import { joinChat } from './Chat.svelte';
-import { setUser, allUsers } from './Users.svelte';
+import { setUser, usersMap, type User } from './Users.svelte';
 
-export let currentStream = $state({
+type Stream = {
+	username: string;
+	title: string;
+	live: boolean;
+	url: string;
+};
+
+export let currentStream: Stream = $state({
 	username: '',
 	title: '',
 	live: false,
 	url: ''
 });
 
-export async function switchStream(username) {
+export async function switchStream(username: string) {
 	if (!username) {
 		console.log('No username');
 		return;
@@ -23,10 +30,11 @@ export async function switchStream(username) {
 		const parsed = await response.json();
 		console.log('Error fetching', response.statusText, parsed);
 
-		if (!allUsers[username]) {
-			let newUser = {
+		if (!usersMap[username]) {
+			const newUser: User = {
 				username: username,
-				live: false
+				live: false,
+				avatar: ''
 			};
 
 			await setUser(newUser);
@@ -43,11 +51,12 @@ export async function switchStream(username) {
 	currentStream.username = data.username;
 	currentStream.title = data.title;
 	currentStream.url = data.url;
+	currentStream.live = data.live;
 
 	let newUser = {
 		username: username,
-		avatar: data.avatar,
-		live: true
+		live: data.live,
+		avatar: data.avatar
 	};
 
 	await setUser(newUser);

@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	import { onMount, tick } from 'svelte';
 
 	// Not sure if needed, but it doesn't hurt.
@@ -34,7 +34,7 @@
 		'text-pink-400'
 	];
 
-	function getMemberColor(member) {
+	function getMemberColor(member: string) {
 		if (members[member]) {
 			return members[member];
 		}
@@ -44,7 +44,7 @@
 		return color;
 	}
 
-	function runRegex(text) {
+	function runRegex(text: string) {
 		text = text.replace(urlRegex, (match) => {
 			return `<a href="${match}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-600 underline underline-blue-400">${match}</a>`;
 		});
@@ -95,7 +95,7 @@
 	});
 
 	onMount(() => {
-		initChat(function (message) {
+		initChat(function (message: String) {
 			if (!autoScroll) {
 				tempMessages = [...tempMessages, message];
 			} else {
@@ -118,10 +118,7 @@
 	>
 		{#each messages as message, index (index)}
 			<!-- eslint-disable svelte/no-at-html-tags-->
-			<div
-				class="text-pretty hover:bg-secondary-600 w-full px-2 whitespace-pre-wrap break-words"
-				key={index}
-			>
+			<div class="text-pretty hover:bg-secondary-600 w-full px-2 whitespace-pre-wrap break-words">
 				<span class="font-bold {getMemberColor(message.u)}">{message.u}</span><!--
       --><span
 					class="text-white">:&nbsp;</span

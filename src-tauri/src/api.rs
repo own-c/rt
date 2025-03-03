@@ -152,9 +152,8 @@ async fn get_live_now(usernames: Query<LiveNowQuery>) -> impl IntoResponse {
 struct Stream {
     username: String,
     title: String,
-    started_at: String,
+    live: bool,
     avatar: String,
-    game: String,
     url: String,
     emotes: Vec<Emote>,
 }
@@ -207,12 +206,6 @@ async fn get_stream(
     let user = extract_json_field(data, "user")?;
     let stream = extract_json_field(user, "stream")?;
     let broadcast_settings = extract_json_field(user, "broadcastSettings")?;
-    let game = stream.get("game").unwrap_or(&Value::Null);
-    let game = if game.is_null() {
-        String::new()
-    } else {
-        string_from_value(game.get("name"))
-    };
 
     let playback_query = format!(
         r#"{{
@@ -275,10 +268,9 @@ async fn get_stream(
     let stream = Stream {
         username,
         title: string_from_value(broadcast_settings.get("title")),
-        started_at: string_from_value(stream.get("createdAt")),
         avatar,
+        live: !stream.is_null(),
         url: playlist_url,
-        game,
         emotes,
     };
 

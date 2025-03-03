@@ -1,14 +1,14 @@
-<script>
+<script lang="ts">
 	import { onMount, tick } from 'svelte';
 
-	import { refreshUsers, removeUser, allUsers } from '$lib/Users.svelte';
+	import { refreshUsers, removeUser, usersMap } from '$lib/Users.svelte';
 	import { switchStream } from '$lib/Stream.svelte';
 
 	let loading = $state(false);
 
 	let rightClickedUser = $state('');
 
-	let inputEl = $state({});
+	let inputEl: HTMLInputElement = $state(null);
 	let channelName = $state('');
 	let showInput = $state(false);
 
@@ -103,18 +103,17 @@
 	<hr class="border-gray-700 w-full" />
 
 	<div class="w-full overflow-y-auto" style="ms-overflow-style: none; scrollbar-width: none;">
-		{#each Object.values(allUsers).sort((a, b) => {
+		{#each Object.values(usersMap).sort((a, b) => {
 			const aLive = a.live ? 1 : 0;
 			const bLive = b.live ? 1 : 0;
 			return bLive - aLive;
 		}) as user, index (index)}
 			<button
 				id={user.username}
-				key={index}
 				title={user.username}
-				disabled={!allUsers || allUsers.length === 0 || loading}
-				class="flex flex-col items-center w-full cursor-pointer hover:bg-secondary-600 py-1 {!allUsers ||
-				allUsers.length === 0 ||
+				disabled={!usersMap || Object.keys(usersMap).length === 0 || loading}
+				class="flex flex-col items-center w-full cursor-pointer hover:bg-secondary-600 py-1 {!usersMap ||
+				Object.keys(usersMap).length === 0 ||
 				loading
 					? 'opacity-50'
 					: ''}"
@@ -157,18 +156,6 @@
 	</div>
 </aside>
 
-{#if showContextMenu}
-	<div
-		bind:this={contextMenuEl}
-		class="flex flex-col gap-1 absolute shadow-lg rounded z-50 bg-secondary-400 py-1"
-		style="top: {rightClickPos.y}px; left: {rightClickPos.x + 10}px;"
-	>
-		<button class="hover:bg-secondary-600 px-2 cursor-pointer w-full" onclick={remove}>
-			Remove {rightClickedUser}
-		</button>
-	</div>
-{/if}
-
 {#if showInput}
 	<form onsubmit={async () => await addNewUser(channelName)}>
 		<input
@@ -181,4 +168,16 @@
 			class="fixed top-10 left-[60px] px-2 shadow-md w-32 z-50 bg-gray-800 border border-white rounded-md outline-none"
 		/>
 	</form>
+{/if}
+
+{#if showContextMenu}
+	<div
+		bind:this={contextMenuEl}
+		class="flex flex-col gap-1 absolute shadow-lg rounded z-50 bg-secondary-400 py-1"
+		style="top: {rightClickPos.y}px; left: {rightClickPos.x + 10}px;"
+	>
+		<button class="hover:bg-secondary-600 px-2 cursor-pointer w-full" onclick={remove}>
+			Remove {rightClickedUser}
+		</button>
+	</div>
 {/if}
