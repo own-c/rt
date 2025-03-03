@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
 	import { onMount, tick } from 'svelte';
 
 	// Not sure if needed, but it doesn't hurt.
@@ -118,10 +118,7 @@
 	>
 		{#each messages as message, index (index)}
 			<!-- eslint-disable svelte/no-at-html-tags-->
-			<div
-				class="text-pretty hover:bg-secondary-600 w-full px-2 whitespace-pre-wrap break-words"
-				key={index}
-			>
+			<div class="text-pretty hover:bg-secondary-600 w-full px-2 whitespace-pre-wrap break-words">
 				<span class="font-bold {getMemberColor(message.u)}">{message.u}</span><!--
       --><span
 					class="text-white">:&nbsp;</span
