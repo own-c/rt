@@ -6,13 +6,13 @@
 
 	import { currentStream } from '$lib/Stream.svelte';
 	import { regexMap, emotesMap } from '$lib/Emotes.svelte';
-	import { initChat } from '$lib/Chat.svelte';
+	import { initChat, type ChatMessage } from '$lib/Chat.svelte';
 
 	const urlRegex = new RegExp(
 		'https?://(www.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)'
 	);
 
-	let members = {};
+	let members: Record<string, string> = {};
 
 	let colors = [
 		'text-red-400',
@@ -61,11 +61,11 @@
 		return DOMPurify.sanitize(text);
 	}
 
-	let chatContainer = $state(null);
+	let chatContainer: HTMLDivElement = $state(document.createElement('div'));
 	let autoScroll = $state(true);
 
-	let messages = $state([]);
-	let tempMessages = $state([]);
+	let messages: ChatMessage[] = $state([]);
+	let tempMessages: ChatMessage[] = $state([]);
 
 	function handleScroll() {
 		if (chatContainer) {
@@ -95,7 +95,7 @@
 	});
 
 	onMount(() => {
-		initChat(function (message: String) {
+		initChat(function (message: ChatMessage) {
 			if (!autoScroll) {
 				tempMessages = [...tempMessages, message];
 			} else {

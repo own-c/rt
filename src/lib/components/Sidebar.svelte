@@ -8,7 +8,7 @@
 
 	let rightClickedUser = $state('');
 
-	let inputEl: HTMLInputElement = $state(null);
+	let inputEl: HTMLInputElement = $state(document.createElement('input'));
 	let channelName = $state('');
 	let showInput = $state(false);
 
@@ -20,13 +20,13 @@
 		if (inputEl) inputEl.focus();
 	}
 
-	let contextMenuEl = $state(null);
+	let contextMenuEl: HTMLDivElement = $state(document.createElement('div'));
 	let rightClickPos = $state({ x: 0, y: 0 });
 	let showContextMenu = $state(false);
 
-	function handleContextMenu(event) {
+	function handleContextMenu(event: MouseEvent) {
 		event.preventDefault();
-		rightClickedUser = event.target.id;
+		rightClickedUser = (event.target as HTMLElement).id;
 		rightClickPos = { x: event.clientX, y: event.clientY };
 		showContextMenu = true;
 	}
@@ -43,13 +43,13 @@
 		loading = false;
 	}
 
-	async function changeStream(username) {
+	async function changeStream(username: string) {
 		loading = true;
 		await switchStream(username);
 		loading = false;
 	}
 
-	async function addNewUser(channelName) {
+	async function addNewUser(channelName: string) {
 		showInput = false;
 		loading = true;
 		await switchStream(channelName);

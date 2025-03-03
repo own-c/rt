@@ -1,8 +1,15 @@
 import { currentStream } from './Stream.svelte';
 
+export type ChatMessage = {
+	// Username
+	u: string;
+	// Message
+	m: string;
+};
+
 let socket: WebSocket;
 
-export function initChat(newMessageHandler: Function) {
+export function initChat(newMessageHandler: (message: ChatMessage) => void) {
 	socket = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
 
 	socket.addEventListener('open', function () {

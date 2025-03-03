@@ -53,7 +53,7 @@ export async function switchStream(username: string) {
 	currentStream.url = data.url;
 	currentStream.live = data.live;
 
-	let newUser = {
+	const newUser = {
 		username: username,
 		live: data.live,
 		avatar: data.avatar
