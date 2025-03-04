@@ -8,16 +8,13 @@ use axum::{
 };
 use bytes::Bytes;
 use lazy_static::lazy_static;
+use log::error;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tauri::Url;
 use tauri_plugin_http::reqwest::{header::HeaderValue, Client};
 
 use crate::api::LOCAL_API;
-
-lazy_static! {
-    static ref HTTP_CLIENT: Client = Client::new();
-}
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct ProxyStreamQuery {
@@ -28,19 +25,25 @@ enum M3U8Result {
     Success(String),
 }
 
-pub async fn proxy(url: Query<ProxyStreamQuery>) -> impl IntoResponse {
+lazy_static! {
+    static ref PROXY_HTTP_CLIENT: Client = Client::new();
+}
+
+pub async fn proxy_stream(url: Query<ProxyStreamQuery>) -> impl IntoResponse {
     let Query(query) = url;
 
     if query.url.is_empty() {
+        error!("No URL provided");
         return (StatusCode::BAD_REQUEST, Response::default());
     }
 
-    let resp = match HTTP_CLIENT.get(query.url.as_str()).send().await {
+    let resp = match PROXY_HTTP_CLIENT.get(query.url.as_str()).send().await {
         Ok(resp) => resp,
         Err(err) => {
+            error!("Proxying request: {err}");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Response::new(format!("Error proxying request: {}", err).into()),
+                Response::new(Body::default()),
             );
         }
     };

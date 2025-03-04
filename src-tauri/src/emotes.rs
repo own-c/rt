@@ -1,43 +1,65 @@
 use std::collections::HashMap;
 
-use bytes::Bytes;
+use anyhow::{anyhow, Context, Result};
 use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
-use tauri_plugin_http::reqwest;
+use log::{error, info};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use tauri_plugin_http::reqwest::Client;
 use tokio::sync::Mutex;
 
-use crate::api::Emote;
+use crate::utils;
 
 const SEVENTV_API: &str = "https://7tv.io/v3";
 const BETTERTV_API: &str = "https://api.betterttv.net/3";
 
-lazy_static! {
-    static ref HTTP_CLIENT: reqwest::Client = reqwest::Client::new();
-    static ref CACHE: Mutex<HashMap<String, Vec<Emote>>> = Mutex::new(HashMap::new());
+#[derive(Serialize, Default, Clone)]
+pub struct Emote {
+    pub name: String,
+    pub url: String,
+    pub width: i64,
+    pub height: i64,
 }
 
-pub async fn fetch_emotes(id: &str) -> Vec<Emote> {
-    let mut lock = CACHE.lock().await;
+lazy_static! {
+    static ref EMOTE_HTTP_CLIENT: Client = utils::new_http_client();
+    static ref EMOTES_CACHE: Mutex<HashMap<String, Vec<Emote>>> = Mutex::new(HashMap::new());
+}
+
+pub async fn fetch_emotes(username: &str, id: &str) -> Result<Vec<Emote>> {
+    let mut lock = EMOTES_CACHE.lock().await;
     if let Some(emotes) = lock.get(id) {
-        println!("Emotes cache hit for {}", id);
-        return emotes.clone();
+        info!("Emotes cache hit for '{username}'");
+        return Ok(emotes.clone());
     }
 
     let mut emotes = Vec::new();
 
-    let seventv_emotes = fetch_7tv_emotes(id).await;
-    let bettertv_emotes = fetch_better_tv_emotes(id).await;
+    let seventv_emotes = match fetch_7tv_emotes(id).await {
+        Ok(emotes) => emotes,
+        Err(err) => {
+            error!("Failed to fetch 7tv emotes: {err}");
+            return Err(err);
+        }
+    };
+    let bettertv_emotes = match fetch_bettertv_emotes(id).await {
+        Ok(emotes) => emotes,
+        Err(err) => {
+            error!("Failed to fetch bettertv emotes: {err}");
+            return Err(err);
+        }
+    };
 
     emotes.extend(seventv_emotes);
     emotes.extend(bettertv_emotes);
 
     lock.insert(id.to_string(), emotes.clone());
 
-    emotes
+    info!("Updated emotes for '{username}'");
+    Ok(emotes)
 }
 
 #[derive(Deserialize, Default)]
-pub struct BetterTTV {
+pub struct BetterTTVResponse {
     #[serde(rename = "channelEmotes")]
     channel_emotes: Vec<BetterTTVEmote>,
     #[serde(rename = "sharedEmotes")]
@@ -52,36 +74,15 @@ pub struct BetterTTVEmote {
     height: Option<i64>,
 }
 
-async fn fetch_better_tv_emotes(id: &str) -> Vec<Emote> {
-    let response = HTTP_CLIENT
-        .get(format!("{BETTERTV_API}/cached/users/twitch/{id}"))
-        .send()
-        .await;
+async fn fetch_bettertv_emotes(id: &str) -> Result<Vec<Emote>> {
+    let response = fetch_and_deserialize::<BetterTTVResponse>(&format!(
+        "{BETTERTV_API}/cached/users/twitch/{id}"
+    ))
+    .await?;
 
-    if let Err(err) = response {
-        println!("Error bettertv fetching emotes: {err}");
-        return Vec::<Emote>::default();
-    }
+    let raw_emotes = [&response.channel_emotes[..], &response.shared_emotes[..]].concat();
 
-    let response = response.unwrap();
-    if response.status() != 200 {
-        println!(
-            "Error bettertv fetching emotes: status code {}",
-            response.status()
-        );
-        return Vec::<Emote>::default();
-    }
-
-    let body = response.bytes().await.unwrap_or(Bytes::new());
-    let raw_emotes = match serde_json::from_slice::<BetterTTV>(&body) {
-        Ok(data) => [&data.channel_emotes[..], &data.shared_emotes[..]].concat(),
-        Err(err) => {
-            println!("Error deserializing bettertv emotes: {}", err);
-            return Vec::<Emote>::default();
-        }
-    };
-
-    raw_emotes
+    let emotes = raw_emotes
         .into_iter()
         .map(|emote| {
             let url = format!("https://cdn.betterttv.net/emote/{}/1x", emote.id);
@@ -92,38 +93,39 @@ async fn fetch_better_tv_emotes(id: &str) -> Vec<Emote> {
                 height: emote.height.unwrap_or(28),
             }
         })
-        .collect()
+        .collect();
+
+    Ok(emotes)
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 struct SevenTVResponse {
     emote_set: SevenTVEmoteSet,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 struct SevenTVEmoteSet {
     emotes: Vec<SevenTVEmote>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 struct SevenTVEmote {
     name: String,
     data: SevenTVEmoteData,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 struct SevenTVEmoteData {
-    animated: bool,
     host: SevenTVEmoteDataHost,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 struct SevenTVEmoteDataHost {
     url: String,
     files: Vec<SevenTVEmoteDataHostFile>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 struct SevenTVEmoteDataHostFile {
     name: String,
     width: i64,
@@ -131,86 +133,78 @@ struct SevenTVEmoteDataHostFile {
     format: String,
 }
 
-async fn fetch_7tv_emotes(id: &str) -> Vec<Emote> {
-    let response = HTTP_CLIENT
-        .get(format!("{SEVENTV_API}/users/twitch/{id}"))
-        .send()
-        .await;
+async fn fetch_7tv_emotes(id: &str) -> Result<Vec<Emote>> {
+    let response =
+        fetch_and_deserialize::<SevenTVResponse>(&format!("{SEVENTV_API}/users/twitch/{id}"))
+            .await?;
 
-    if let Err(err) = response {
-        println!("Error 7tv fetching emotes: {err}");
-        return Vec::<Emote>::default();
-    }
-
-    let response = response.unwrap();
-    if response.status() != 200 {
-        println!(
-            "Error 7tv fetching emotes: status code {}",
-            response.status()
-        );
-        return Vec::<Emote>::default();
-    }
-
-    let body = response.bytes().await.unwrap_or(Bytes::new());
-    let raw_emotes = match serde_json::from_slice::<SevenTVResponse>(&body) {
-        Ok(data) => data.emote_set.emotes,
-        Err(err) => {
-            println!("Error deserializing 7tv emotes: {}", err);
-            return Vec::<Emote>::default();
-        }
-    };
-
-    raw_emotes
+    let emotes: Vec<Emote> = response
+        .emote_set
+        .emotes
         .into_iter()
         .filter_map(|mut emote| {
             emote
                 .data
                 .host
                 .files
-                .retain(|file| file.name.starts_with("1"));
-
-            if !emote.data.host.files.is_empty() {
-                Some(emote)
-            } else {
-                None
-            }
+                .retain(|file| file.name.starts_with('1'));
+            (!emote.data.host.files.is_empty()).then_some(emote)
         })
-        .collect::<Vec<SevenTVEmote>>()
-        .into_iter()
         .filter_map(|emote| {
+            let host = emote.data.host;
             let name = emote.name;
-            let data = emote.data;
 
-            let host = data.host;
+            let priority = |format: &str| match format.to_uppercase().as_str() {
+                "AVIF" => Some(0),
+                "WEBP" => Some(1),
+                "PNG" => Some(2),
+                "GIF" => Some(3),
+                _ => None,
+            };
 
-            fn priority(format: &str) -> Option<u8> {
-                match format.to_uppercase().as_str() {
-                    "AVIF" => Some(0),
-                    "WEBP" => Some(1),
-                    "PNG" => Some(2),
-                    "GIF" => Some(3),
-                    _ => None,
-                }
-            }
-
-            let file = host
-                .files
+            host.files
                 .iter()
                 .filter_map(|file| priority(&file.format).map(|p| (p, file)))
                 .min_by_key(|(p, _)| *p)
-                .map(|(_, file)| (file));
-
-            if let Some(file) = file {
-                let url = format!("https:{}/{}", host.url, file.name);
-                return Some(Emote {
+                .map(|(_, file)| Emote {
                     name,
-                    url,
+                    url: format!("https:{}/{}", host.url, file.name),
                     width: file.width,
                     height: file.height,
-                });
-            }
-
-            None
+                })
         })
-        .collect()
+        .collect();
+
+    Ok(emotes)
+}
+
+async fn fetch_and_deserialize<T: DeserializeOwned>(url: &str) -> Result<T> {
+    let response = EMOTE_HTTP_CLIENT
+        .get(url)
+        .send()
+        .await
+        .context("Failed to send request")?;
+
+    let status = response.status();
+
+    if !status.is_success() {
+        let error_body = response
+            .text()
+            .await
+            .unwrap_or_else(|err| format!("Unknown error: {err}"));
+
+        return Err(anyhow!("Request failed with status {status}: {error_body}"));
+    }
+
+    let body = response
+        .bytes()
+        .await
+        .context("Failed to read response body")?;
+
+    if body.is_empty() {
+        return Err(anyhow!("Received empty response"));
+    }
+
+    let data: T = serde_json::from_slice(&body).context("Failed to deserialize response")?;
+    Ok(data)
 }

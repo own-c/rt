@@ -20,13 +20,24 @@ rustup component add llvm-tools
 - Frontend `src`: [SvelteKit](https://svelte.dev/docs/kit/introduction). Using [tailwindcss](https://tailwindcss.com) and [Vidstack](https://github.com/vidstack/player).
 - Backend `src-tauri`: [Rust](https://www.rust-lang.org/), [Tauri](https://tauri.app/). Using [axum](https://github.com/tokio-rs/axum).
 
-Data is stored using `tauri-plugin-store`.
+Data is stored in the following locations:
+
+- `Windows`: `%AppData%/Roaming/com.rt.app`
+- `Linux`: `~/.config/com.rt.app`
+
+Logs are stored in the following locations:
+
+- `Linux`: `$XDG_DATA_HOME/com.rt.app/logs` or `$HOME/.local/share/com.rt.app/logs`
+- `Windows`: `%LocalAppData%/com.rt.app/logs`
 
 ## TODO
 
 - Add global Twitch emotes and fetch the user emotes.
-- Use SSE for chat, add an endpoint for it, maybe use tokio-tungstenite for the client.
 - Add persistent settings.
 - Better error handling in the frontend (show notification when user is not found, etc).
 - Button to show current stream info (game, viewcount, etc).
-- Logs in a file and/or a window/dialog.
+- Improve visibility of emotes, they are currently very close to each other.
+- Try rt on other platforms.
+- Add GitHub Actions to build (with `--no-bundle`) and provide artifacts for some platforms.
+- Move config, data and logs to a single location.
+- Improve logging.

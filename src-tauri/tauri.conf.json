@@ -14,7 +14,6 @@
       {
         "title": "rt",
         "width": 1280,
-        "visible": false,
         "height": 720,
         "focus": true,
         "shadow": false,

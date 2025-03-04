@@ -25,7 +25,7 @@ export async function switchStream(username: string) {
 		return;
 	}
 
-	const response = await fetch('http://127.0.0.1:3030/user/' + username);
+	const response = await fetch('http://127.0.0.1:3030/stream/' + username);
 
 	if (response.status !== 200) {
 		const parsed = await response.json();
