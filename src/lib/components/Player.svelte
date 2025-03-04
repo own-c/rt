@@ -1,7 +1,7 @@
 <script lang="ts">
 	import 'vidstack/bundle';
 
-	import { currentStream } from '$lib/Stream.svelte';
+	import { currentStream } from '$lib/logic/Stream.svelte';
 </script>
 
 {#key currentStream.url || currentStream.live}

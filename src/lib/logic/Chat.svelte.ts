@@ -7,6 +7,12 @@ export type ChatMessage = {
 	m: string;
 };
 
+const IRCReg = new RegExp('^:(\\S+)!.+ PRIVMSG .+? :(.+?)$', 'm');
+
+export const URLReg = new RegExp(
+	'https?://(www.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)'
+);
+
 let socket: WebSocket;
 
 export function initChat(newMessageHandler: (message: ChatMessage) => void) {
@@ -37,10 +43,8 @@ export function joinChat(newChatChannel: string) {
 	socket.send('JOIN #' + newChatChannel);
 }
 
-const regex = new RegExp('^:(\\S+)!.+ PRIVMSG .+? :(.+?)$', 'm');
-
 function parseIRC(message: string) {
-	const match = message.match(regex);
+	const match = message.match(IRCReg);
 
 	if (!match) return null;
 

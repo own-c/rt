@@ -1,4 +1,6 @@
+// eslint-disable-next-line prefer-const
 export let emotesMap: Record<string, Record<string, Emote>> = $state({});
+// eslint-disable-next-line prefer-const
 export let regexMap: Record<string, RegExp> = $state({});
 
 type Emote = {

@@ -8,8 +8,8 @@
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import Chat from '$lib/components/Chat.svelte';
 
-	import { initUsers } from '$lib/Users.svelte';
-	import { switchStream, currentStream } from '$lib/Stream.svelte';
+	import { initUsers } from '$lib/logic/Users.svelte';
+	import { switchStream, currentStream } from '$lib/logic/Stream.svelte';
 
 	let showChat = $state(false);
 	function toggleChat() {

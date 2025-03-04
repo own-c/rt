@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 
-	import { refreshUsers, removeUser, usersMap } from '$lib/Users.svelte';
-	import { switchStream } from '$lib/Stream.svelte';
+	import { refreshUsers, removeUser, usersMap } from '$lib/logic/Users.svelte';
+	import { switchStream } from '$lib/logic/Stream.svelte';
 
 	let loading = $state(false);
 

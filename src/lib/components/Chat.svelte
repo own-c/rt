@@ -1,20 +1,17 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 
-	// Not sure if needed, but it doesn't hurt.
+	import { openUrl } from '@tauri-apps/plugin-opener';
+
 	import DOMPurify from 'dompurify';
 
-	import { currentStream } from '$lib/Stream.svelte';
-	import { regexMap, emotesMap } from '$lib/Emotes.svelte';
-	import { initChat, type ChatMessage } from '$lib/Chat.svelte';
+	import { currentStream } from '$lib/logic/Stream.svelte';
+	import { regexMap, emotesMap } from '$lib/logic//Emotes.svelte';
+	import { initChat, URLReg, type ChatMessage } from '$lib/logic/Chat.svelte';
 
-	const urlRegex = new RegExp(
-		'https?://(www.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)'
-	);
+	const members: Record<string, string> = {};
 
-	let members: Record<string, string> = {};
-
-	let colors = [
+	const colors = [
 		'text-red-400',
 		'text-orange-400',
 		'text-yellow-400',
@@ -22,7 +19,7 @@
 		'text-teal-400',
 		'text-blue-400',
 		'text-purple-400',
-		'text-gray-400',
+		'text-slate-400',
 		'text-indigo-400',
 		'text-cyan-400',
 		'text-emerald-400',
@@ -44,9 +41,9 @@
 		return color;
 	}
 
-	function runRegex(text: string) {
-		text = text.replace(urlRegex, (match) => {
-			return `<a href="${match}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-600 underline underline-blue-400">${match}</a>`;
+	function getMessageHTML(text: string) {
+		text = text.replace(URLReg, (match) => {
+			return `<span id="url" class="text-blue-400 hover:text-blue-600 underline underline-blue-400 cursor-pointer">${match}</div>`;
 		});
 
 		if (!regexMap[currentStream.username]) return DOMPurify.sanitize(text);
@@ -61,28 +58,37 @@
 		return DOMPurify.sanitize(text);
 	}
 
-	let chatContainer: HTMLDivElement = $state(document.createElement('div'));
-	let autoScroll = $state(true);
-
 	let messages: ChatMessage[] = $state([]);
 	let tempMessages: ChatMessage[] = $state([]);
+
+	let chatContainer: HTMLDivElement = $state(document.createElement('div'));
+	let autoScroll = $state(true);
 
 	function handleScroll() {
 		if (chatContainer) {
 			const { scrollTop, scrollHeight, clientHeight } = chatContainer;
 			if (scrollTop + clientHeight < scrollHeight - 10) {
 				autoScroll = false;
-			} else {
-				autoScroll = true;
-				if (tempMessages.length > 0) {
-					let combined = [...messages, ...tempMessages];
-					if (combined.length > 500) {
-						combined = combined.slice(combined.length - 500);
-					}
-					messages = combined;
-					tempMessages = [];
-				}
+				return;
 			}
+
+			autoScroll = true;
+			if (tempMessages.length > 0) {
+				let combined = [...messages, ...tempMessages];
+				if (combined.length > 500) {
+					combined = combined.slice(combined.length - 500);
+				}
+
+				messages = combined;
+				tempMessages = [];
+			}
+		}
+	}
+
+	async function openUrlInBrowser(event: MouseEvent) {
+		const target = event.target as HTMLElement;
+		if (target.id === 'url') {
+			await openUrl(target.innerText);
 		}
 	}
 
@@ -110,6 +116,7 @@
 </script>
 
 <div class="relative" style="height: calc(100vh - 2.0rem);">
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div
 		bind:this={chatContainer}
 		onscroll={handleScroll}
@@ -123,7 +130,13 @@
       --><span
 					class="text-white">:&nbsp;</span
 				><!--
-      --><span class="text-white">{@html runRegex(message.m)}</span>
+
+      --><span
+					class="text-white"
+					onclick={openUrlInBrowser}
+					role="link"
+					tabindex={index}>{@html getMessageHTML(message.m)}</span
+				>
 			</div>
 			<!-- eslint-enable svelte/no-at-html-tags-->
 		{/each}

@@ -11,6 +11,7 @@ type Stream = {
 	url: string;
 };
 
+// eslint-disable-next-line prefer-const
 export let currentStream: Stream = $state({
 	username: '',
 	title: '',

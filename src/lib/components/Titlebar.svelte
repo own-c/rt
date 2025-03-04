@@ -3,7 +3,7 @@
 
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 
-	import { currentStream } from '$lib/Stream.svelte';
+	import { currentStream } from '$lib/logic/Stream.svelte';
 
 	let { toggleChat } = $props();
 	let showChat = $state(false);
