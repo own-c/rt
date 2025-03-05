@@ -9,24 +9,25 @@
 	import Chat from '$lib/components/Chat.svelte';
 
 	import { initUsers } from '$lib/logic/Users.svelte';
-	import { switchStream, currentStream } from '$lib/logic/Stream.svelte';
+	import { watching, fetchAndSetStream } from '$lib/logic/Stream.svelte';
 
 	let showChat = $state(false);
 	function toggleChat() {
 		showChat = !showChat;
 	}
 
+	const twitchReg = new RegExp('twitch.tv/([a-zA-Z0-9_]+)');
+
 	onMount(async () => {
 		await initUsers();
 
 		await onOpenUrl(async (urls) => {
-			const twitchRegex = new RegExp('twitch.tv/([a-zA-Z0-9_]+)');
 			let username = '';
 
 			if (urls && urls[0]) {
 				const url = urls[0];
 
-				const matches = url.match(twitchRegex);
+				const matches = url.match(twitchReg);
 				if (matches && matches[1]) {
 					username = matches[1];
 				} else {
@@ -34,7 +35,7 @@
 					username = parts[0];
 				}
 
-				await switchStream(username);
+				await fetchAndSetStream(username);
 			}
 		});
 	});
@@ -48,7 +49,7 @@
 
 		<main class="flex w-full h-full">
 			<div class="flex w-full h-full">
-				{#if currentStream.url}
+				{#if watching.url}
 					<Player />
 				{:else}
 					<div class="flex flex-col items-center justify-center h-full w-full">

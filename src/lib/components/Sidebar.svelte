@@ -2,19 +2,19 @@
 	import { onMount, tick } from 'svelte';
 
 	import { refreshUsers, removeUser, usersMap } from '$lib/logic/Users.svelte';
-	import { switchStream } from '$lib/logic/Stream.svelte';
+	import { fetchAndSetStream } from '$lib/logic/Stream.svelte';
 
 	let loading = $state(false);
 
 	let rightClickedUser = $state('');
 
 	let inputEl: HTMLInputElement = $state(document.createElement('input'));
-	let channelName = $state('');
+	let username = $state('');
 	let showInput = $state(false);
 
 	async function toggleInput() {
 		showInput = !showInput;
-		channelName = '';
+		username = '';
 
 		await tick();
 		if (inputEl) inputEl.focus();
@@ -45,14 +45,14 @@
 
 	async function changeStream(username: string) {
 		loading = true;
-		await switchStream(username);
+		await fetchAndSetStream(username);
 		loading = false;
 	}
 
-	async function addNewUser(channelName: string) {
+	async function addNewUser(username: string) {
 		showInput = false;
 		loading = true;
-		await switchStream(channelName);
+		await fetchAndSetStream(username);
 		loading = false;
 	}
 
@@ -157,10 +157,10 @@
 </aside>
 
 {#if showInput}
-	<form onsubmit={async () => await addNewUser(channelName)}>
+	<form onsubmit={async () => await addNewUser(username)}>
 		<input
 			bind:this={inputEl}
-			bind:value={channelName}
+			bind:value={username}
 			type="text"
 			placeholder="Channel name"
 			spellcheck="false"

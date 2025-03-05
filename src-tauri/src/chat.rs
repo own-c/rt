@@ -26,7 +26,7 @@ lazy_static! {
     pub static ref CURRENT_CHAT: Mutex<Option<String>> = Mutex::new(None);
 
     static ref CHAT_REGEX: Regex = Regex::new(
-        r"^@.*?color=(?P<color>[^;]*).*?display-name=(?P<display_name>[^;]*).*?first-msg=(?P<first_msg>[^;]*).*?tmi-sent-ts=(?P<tmi_sent_ts>[^;]*).*?PRIVMSG\s+\S+\s+:(?P<message>.*)$"
+        r"(?m)^@.*?color=(?P<color>[^;]*).*?display-name=(?P<display_name>[^;]*).*?first-msg=(?P<first_msg>[^;]*).*?tmi-sent-ts=(?P<tmi_sent_ts>[^;]*).*?PRIVMSG\s+\S+\s+:(?P<message>.*)$"
     ).unwrap();
 }
 
@@ -63,22 +63,27 @@ pub async fn join_chat(
     let (tx, rx) = async_runtime::channel::<Result<Event, Infallible>>(100);
 
     async_runtime::spawn(async move {
-        let current_stream = CURRENT_CHAT.lock().await;
+        let mut current_stream = CURRENT_CHAT.lock().await;
         let mut ws = ws_stream.lock().await;
 
         if current_stream.is_some() {
-            info!("Leaving chat '{}'", current_stream.clone().unwrap());
-            if let Err(err) = ws.send(format!("PART #{username}").into()).await {
-                error!("send: {err}");
+            let old = current_stream.clone().unwrap();
+            if old != username {
+                info!("Leaving '{old}' chat");
+                if let Err(err) = ws.send(format!("PART #{old}").into()).await {
+                    error!("Send: {err}");
+                }
+
+                *current_stream = None;
             }
         }
 
-        info!("Joining chat '{}'", username);
-        if let Err(err) = ws.send(format!("JOIN #{username}").into()).await {
-            error!("send: {err}");
+        info!("Joining '{username}' chat");
+        if ws.send(format!("JOIN #{username}").into()).await.is_ok() {
+            *current_stream = Some(username.to_string());
+        } else {
+            error!("Failed to join chat: {username}");
         }
-
-        let _ = ws.flush().await;
 
         loop {
             match ws.next().await {
@@ -89,10 +94,7 @@ pub async fn join_chat(
                             continue;
                         }
 
-                        let caps = match caps {
-                            Some(caps) => caps,
-                            None => continue,
-                        };
+                        let Some(caps) = caps else { continue };
 
                         if caps.len() < 5 {
                             error!("Not enough captures for '{}'", text);
@@ -103,19 +105,23 @@ pub async fn join_chat(
                         let name = caps.name("display_name").unwrap().as_str().to_string();
                         let first_msg = caps.name("first_msg").unwrap().as_str().to_string();
                         let timestamp = caps.name("tmi_sent_ts").unwrap().as_str().to_string();
-                        let message = caps.name("message").unwrap().as_str().to_string();
+                        let message = caps
+                            .name("message")
+                            .unwrap()
+                            .as_str()
+                            .trim_end()
+                            .to_string();
 
                         let chat_message = format!(
-                            "$TIMESTAMP: {} $COLOR: {} $FIRST_MSG: {} $NAME: {} $MESSAGE: {}",
-                            timestamp, color, first_msg, name, message
+                            "$TIMESTAMP: {timestamp} $COLOR: {color} $FIRST_MSG: {first_msg} $NAME: {name} $MESSAGE: {message}"
                         );
 
-                        if tx
-                            .send(Ok(Event::default().data(&chat_message)))
-                            .await
-                            .is_err()
-                        {
-                            break;
+                        match tx.send(Ok(Event::default().data(&chat_message))).await {
+                            Ok(_) => {}
+                            Err(err) => {
+                                error!("Error sending chat message: {err}");
+                                break;
+                            }
                         }
                     }
                 }

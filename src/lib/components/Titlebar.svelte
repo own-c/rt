@@ -3,7 +3,7 @@
 
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 
-	import { currentStream } from '$lib/logic/Stream.svelte';
+	import { watching } from '$lib/logic/Stream.svelte';
 
 	let { toggleChat } = $props();
 	let showChat = $state(false);
@@ -16,12 +16,6 @@
 		toggleChat();
 	}
 
-	$effect(() => {
-		if (currentStream.username && currentStream.title) {
-			appWindow.setTitle(currentStream.username + ': ' + currentStream.title);
-		}
-	});
-
 	onMount(async () => {
 		await getCurrentWindow().onResized(async () => {
 			maximized = await appWindow.isMaximized();
@@ -30,16 +24,16 @@
 </script>
 
 <header data-tauri-drag-region class="flex w-full bg-violet-800 min-h-8">
-	{#if currentStream.username && currentStream.title}
-		<div title={currentStream.title} class="flex-1 text-center text-lg font-bold">
-			{currentStream.username}
+	{#if watching.username}
+		<div class="flex-1 text-center text-lg font-bold">
+			{watching.username}
 		</div>
 	{:else}
 		<div class="flex-1"></div>
 	{/if}
 
 	<div class="flex h-full">
-		{#if currentStream.url}
+		{#if watching.url}
 			<button
 				aria-label="Expand chat"
 				title={showChat ? 'Collapse chat' : 'Expand chat'}

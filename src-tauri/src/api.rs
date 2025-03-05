@@ -14,7 +14,7 @@ use tauri_plugin_http::reqwest::{
 use tokio::net::TcpListener;
 use tower_http::cors::{Any, CorsLayer};
 
-use crate::{chat, proxy, user, utils};
+use crate::{chat, emote, proxy, user, utils};
 
 const GRAPHQL_API: &str = "https://gql.twitch.tv/gql";
 
@@ -44,6 +44,7 @@ pub async fn start_api_server() -> Result<()> {
         .route("/proxy", get(proxy::proxy_stream))
         .route("/live", get(user::get_live_now))
         .route("/stream/{username}", get(user::get_user_stream))
+        .route("/emotes/{username}", get(emote::get_user_emotes))
         .route("/chat/{username}", get(chat::join_chat))
         .with_state(Arc::new(Mutex::new(ws_stream)))
         .layer(cors_layer);

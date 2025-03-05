@@ -4,7 +4,7 @@ use tauri_plugin_deep_link::DeepLinkExt;
 
 mod api;
 mod chat;
-mod emotes;
+mod emote;
 mod proxy;
 mod user;
 mod utils;
@@ -47,5 +47,5 @@ pub fn run() {
 
     builder
         .run(tauri::generate_context!())
-        .expect("while running tauri application")
+        .expect("while running tauri application");
 }

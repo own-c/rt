@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use axum::{
     body::{Body, HttpBody},
     extract::Query,
@@ -59,7 +57,7 @@ pub async fn proxy_stream(url: Query<ProxyStreamQuery>) -> impl IntoResponse {
             let body_bytes = resp.bytes().await.unwrap_or(Bytes::new());
 
             let M3U8Result::Success(body) =
-                process_m3u8(query.url, String::from_utf8_lossy(&body_bytes));
+                process_m3u8(&query.url, &String::from_utf8_lossy(&body_bytes));
 
             Body::from(body)
         }
@@ -69,7 +67,7 @@ pub async fn proxy_stream(url: Query<ProxyStreamQuery>) -> impl IntoResponse {
     let mut response = Response::new(Body::default());
 
     if content_type.contains("stream") {
-        *response.body_mut() = Body::from_stream(body.into_data_stream())
+        *response.body_mut() = Body::from_stream(body.into_data_stream());
     } else {
         let new_content_length = match body.size_hint().exact() {
             Some(size) => size.to_string(),
@@ -89,15 +87,15 @@ pub async fn proxy_stream(url: Query<ProxyStreamQuery>) -> impl IntoResponse {
     (StatusCode::OK, response)
 }
 
-fn process_m3u8(base_url: String, playlist: Cow<'_, str>) -> M3U8Result {
-    let base_url = Url::parse(&base_url).ok();
+fn process_m3u8(base_url: &str, playlist: &str) -> M3U8Result {
+    let base_url = Url::parse(base_url).ok();
     let reg = Regex::new(r"^(https?://[^\s]+)").unwrap();
 
     let result = playlist
         .lines()
         .map(|line| {
             // Add PROXY_URL to all urls
-            if reg.is_match(line) || (!line.starts_with("#") && !line.is_empty()) {
+            if reg.is_match(line) || (!line.starts_with('#') && !line.is_empty()) {
                 if let Some(base) = &base_url {
                     if let Ok(abs_url) = base.join(line) {
                         return format!(

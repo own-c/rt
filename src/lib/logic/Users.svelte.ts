@@ -4,7 +4,7 @@ import { load, Store } from '@tauri-apps/plugin-store';
 // eslint-disable-next-line prefer-const
 export let usersMap: Record<string, User> = $state({});
 
-export type User = {
+type User = {
 	username: string;
 	avatar: string;
 	live: boolean;
@@ -15,6 +15,7 @@ let tauriStore: Store;
 export async function initUsers() {
 	tauriStore = await load('users.json', { autoSave: false });
 	const data = await tauriStore.get<Record<string, User>>('users');
+
 	if (!data) return;
 
 	for (const [key, value] of Object.entries(data)) {
@@ -34,11 +35,10 @@ export async function setUser(newUser: User) {
 
 export async function refreshUsers() {
 	const usernames = Object.keys(usersMap);
-	const response = await fetch('http://127.0.0.1:3030/live?usernames=' + usernames.join(','));
+
+	const response = await fetch(`http://127.0.0.1:3030/live?usernames=${usernames.join(',')}`);
 
 	if (response.status !== 200) {
-		const parsed = await response.json();
-		console.log('Error fetching', response.statusText, parsed.message);
 		return;
 	}
 

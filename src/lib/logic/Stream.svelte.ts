@@ -1,64 +1,69 @@
 import { fetch } from '@tauri-apps/plugin-http';
 
-import { addUserEmotes } from './Emotes.svelte';
-import { joinChat } from './Chat.svelte';
-import { setUser, usersMap, type User } from './Users.svelte';
+import { setNewChat } from '$lib/components/Chat.svelte';
 
-type Stream = {
+import { setUser } from './Users.svelte';
+import { fetchUserEmotes, setUserEmotes } from './Emotes.svelte';
+
+type Watching = {
 	username: string;
-	title: string;
-	live: boolean;
 	url: string;
 };
 
+type StreamResponse = {
+	live: boolean;
+	avatar: string;
+	url: string;
+	username: string;
+};
+
 // eslint-disable-next-line prefer-const
-export let currentStream: Stream = $state({
+export let watching: Watching = $state({
 	username: '',
-	title: '',
-	live: false,
 	url: ''
 });
 
-export async function switchStream(username: string) {
-	if (!username) {
-		console.log('No username');
-		return;
-	}
-
-	const response = await fetch('http://127.0.0.1:3030/stream/' + username);
+export async function fetchStream(username: string) {
+	const response = await fetch(`http://127.0.0.1:3030/stream/${username}`);
 
 	if (response.status !== 200) {
-		const parsed = await response.json();
-		console.log('Error fetching', response.statusText, parsed);
-
-		if (!usersMap[username]) {
-			const newUser: User = {
-				username: username,
-				live: false,
-				avatar: ''
-			};
-
-			await setUser(newUser);
-		}
-
 		return;
 	}
 
-	const data = await response.json();
+	const data: StreamResponse = await response.json();
+	return data;
+}
 
-	await addUserEmotes(username, data.emotes);
+export function setWatching(stream: StreamResponse) {
+	watching.username = stream.username;
+	watching.url = stream.url;
+}
 
-	joinChat(data.username);
-	currentStream.username = data.username;
-	currentStream.title = data.title;
-	currentStream.url = data.url;
-	currentStream.live = data.live;
+export async function fetchAndSetStream(username: string) {
+	const stream = await fetchStream(username);
+	if (stream) {
+		const newUser = {
+			username: username,
+			live: stream.live,
+			avatar: stream.avatar
+		};
 
-	const newUser = {
-		username: username,
-		live: data.live,
-		avatar: data.avatar
-	};
+		await setUser(newUser);
 
-	await setUser(newUser);
+		const emotes = await fetchUserEmotes(username);
+		if (emotes) {
+			setUserEmotes(username, emotes);
+		}
+
+		setNewChat(username);
+		setWatching(stream);
+		return;
+	}
+
+	setWatching({
+		username: '',
+		url: '',
+		live: false,
+		avatar: ''
+	});
 }

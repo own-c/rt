@@ -1,22 +1,27 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Context, Result};
+use axum::{extract::Path, http::StatusCode, response::IntoResponse, Json};
 use lazy_static::lazy_static;
 use log::{error, info};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tauri_plugin_http::reqwest::Client;
 use tokio::sync::Mutex;
 
-use crate::utils;
+use crate::{user::USER_TO_ID, utils};
 
 const SEVENTV_API: &str = "https://7tv.io/v3";
 const BETTERTV_API: &str = "https://api.betterttv.net/3";
 
 #[derive(Serialize, Default, Clone)]
 pub struct Emote {
+    #[serde(rename = "n")]
     pub name: String,
+    #[serde(rename = "u")]
     pub url: String,
+    #[serde(rename = "w")]
     pub width: i64,
+    #[serde(rename = "h")]
     pub height: i64,
 }
 
@@ -25,11 +30,30 @@ lazy_static! {
     static ref EMOTES_CACHE: Mutex<HashMap<String, Vec<Emote>>> = Mutex::new(HashMap::new());
 }
 
-pub async fn fetch_emotes(username: &str, id: &str) -> Result<Vec<Emote>> {
+pub async fn get_user_emotes(username: Path<String>) -> impl IntoResponse {
+    let Path(username) = username;
+
+    if username.is_empty() {
+        error!("No username provided");
+        return (StatusCode::BAD_REQUEST, Json(vec![]));
+    }
+
+    let lock = USER_TO_ID.lock().await;
+
+    let Some(id) = lock.get(&username) else {
+        error!("No ID found for '{username}'");
+        return (StatusCode::BAD_REQUEST, Json(vec![]));
+    };
+
+    if id.is_empty() {
+        error!("ID for '{username}' is empty");
+        return (StatusCode::BAD_REQUEST, Json(vec![]));
+    }
+
     let mut lock = EMOTES_CACHE.lock().await;
     if let Some(emotes) = lock.get(id) {
         info!("Emotes cache hit for '{username}'");
-        return Ok(emotes.clone());
+        return (StatusCode::OK, Json(emotes.clone()));
     }
 
     let mut emotes = Vec::new();
@@ -38,14 +62,14 @@ pub async fn fetch_emotes(username: &str, id: &str) -> Result<Vec<Emote>> {
         Ok(emotes) => emotes,
         Err(err) => {
             error!("Failed to fetch 7tv emotes: {err}");
-            return Err(err);
+            Vec::new()
         }
     };
     let bettertv_emotes = match fetch_bettertv_emotes(id).await {
         Ok(emotes) => emotes,
         Err(err) => {
             error!("Failed to fetch bettertv emotes: {err}");
-            return Err(err);
+            Vec::new()
         }
     };
 
@@ -55,7 +79,7 @@ pub async fn fetch_emotes(username: &str, id: &str) -> Result<Vec<Emote>> {
     lock.insert(id.to_string(), emotes.clone());
 
     info!("Updated emotes for '{username}'");
-    Ok(emotes)
+    (StatusCode::OK, Json(emotes))
 }
 
 #[derive(Deserialize, Default)]

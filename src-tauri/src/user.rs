@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use anyhow::Result;
 use axum::{
@@ -11,12 +11,11 @@ use lazy_static::lazy_static;
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tauri::Url;
+use tauri::{async_runtime::Mutex, Url};
 use tauri_plugin_http::reqwest::Client;
 
 use crate::{
     api::{self, LOCAL_API},
-    emotes::{self, Emote},
     utils,
 };
 
@@ -34,15 +33,14 @@ pub struct LiveNowQuery {
 #[derive(Serialize)]
 struct Stream {
     username: String,
-    title: String,
     live: bool,
     avatar: String,
     url: String,
-    emotes: Vec<Emote>,
 }
 
 lazy_static! {
     static ref USER_HTTP_CLIENT: Client = utils::new_http_client();
+    pub static ref USER_TO_ID: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
 }
 
 pub async fn get_live_now(usernames: Query<LiveNowQuery>) -> impl IntoResponse {
@@ -56,7 +54,7 @@ pub async fn get_live_now(usernames: Query<LiveNowQuery>) -> impl IntoResponse {
     let mut body = json!([]);
     let arr = body.as_array_mut().unwrap();
 
-    query.usernames.split(",").for_each(|username| {
+    query.usernames.split(',').for_each(|username| {
         if username.is_empty() {
             return;
         }
@@ -81,12 +79,9 @@ pub async fn get_live_now(usernames: Query<LiveNowQuery>) -> impl IntoResponse {
         }
     };
 
-    let arr = match uselive_query_data.as_array() {
-        Some(arr) => arr,
-        None => {
-            error!("UseLive data was not an array");
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(vec![]));
-        }
+    let Some(arr) = uselive_query_data.as_array() else {
+        error!("UseLive data was not an array");
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(vec![]));
     };
 
     let mut live = Vec::new();
@@ -107,9 +102,8 @@ pub async fn get_live_now(usernames: Query<LiveNowQuery>) -> impl IntoResponse {
                     None => continue,
                 };
 
-                let login = match val.get("login") {
-                    Some(val) => val,
-                    None => continue,
+                let Some(login) = val.get("login") else {
+                    continue;
                 };
 
                 login.as_str().unwrap_or("")
@@ -182,7 +176,7 @@ pub async fn get_user_stream(
     query
         .as_array_mut()
         .unwrap()
-        .push(json!({"query": playback_query.replace(" ","")}));
+        .push(json!({"query": playback_query.replace(' ',"")}));
 
     let response = match api::send_gql(query).await {
         Ok(data) => data,
@@ -205,22 +199,22 @@ pub async fn get_user_stream(
     let response = response.unwrap();
     let streaming = response.first().unwrap();
 
-    let user = match streaming.pointer("/data/user") {
-        Some(val) => val,
-        None => {
-            error!("Missing user in streaming data");
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(Value::Null)));
-        }
+    let Some(user) = streaming.pointer("/data/user") else {
+        error!("Missing user in streaming data");
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(Value::Null)));
     };
 
     let stream = utils::extract_json_field(user, "stream")?;
-    let broadcast_settings = utils::extract_json_field(user, "broadcastSettings")?;
 
     let playback = response.last().unwrap();
 
     let access_token = utils::extract_json_field(playback, "data")?;
     let access_token_user = utils::extract_json_field(access_token, "user")?;
+
     let id = utils::string_from_value(access_token_user.get("id"));
+    let mut lock = USER_TO_ID.lock().await;
+    lock.insert(username.clone(), id.clone());
+
     let avatar = utils::string_from_value(access_token_user.get("profileImageURL"));
 
     let playback_tokens = utils::extract_json_field(access_token, "streamPlaybackAccessToken")?;
@@ -240,17 +234,11 @@ pub async fn get_user_stream(
         }
     };
 
-    let emotes = emotes::fetch_emotes(&username, &id)
-        .await
-        .unwrap_or_default();
-
     let stream = Stream {
         username: username.clone(),
-        title: utils::string_from_value(broadcast_settings.get("title")),
         avatar,
         live: !stream.is_null(),
         url: playlist_url,
-        emotes,
     };
 
     let stream = serde_json::to_value(stream).unwrap();

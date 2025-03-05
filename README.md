@@ -36,8 +36,10 @@ Logs are stored in the following locations:
 - Add persistent settings.
 - Better error handling in the frontend (show notification when user is not found, etc).
 - Button to show current stream info (game, viewcount, etc).
-- Improve visibility of emotes, they are currently very close to each other.
+- Improve visibility of emotes, they are currently very close to each other, also the chat needs some improvements.
+- Fix chat scrollbar autoscroll.
 - Try rt on other platforms.
+- Use a shared public .env for some settings in both frontend and backend.
 - Add GitHub Actions to build (with `--no-bundle`) and provide artifacts for some platforms.
 - Move config, data and logs to a single location.
 - Improve logging.

@@ -1,62 +1,9 @@
-<script lang="ts">
-	import { onMount, tick } from 'svelte';
-
+<script lang="ts" module>
 	import { openUrl } from '@tauri-apps/plugin-opener';
 
-	import DOMPurify from 'dompurify';
-
-	import { currentStream } from '$lib/logic/Stream.svelte';
-	import { regexMap, emotesMap } from '$lib/logic//Emotes.svelte';
-	import { initChat, URLReg, type ChatMessage } from '$lib/logic/Chat.svelte';
-
-	const members: Record<string, string> = {};
-
-	const colors = [
-		'text-red-400',
-		'text-orange-400',
-		'text-yellow-400',
-		'text-green-400',
-		'text-teal-400',
-		'text-blue-400',
-		'text-purple-400',
-		'text-slate-400',
-		'text-indigo-400',
-		'text-cyan-400',
-		'text-emerald-400',
-		'text-lime-400',
-		'text-amber-400',
-		'text-rose-400',
-		'text-fuchsia-400',
-		'text-sky-400',
-		'text-pink-400'
-	];
-
-	function getMemberColor(member: string) {
-		if (members[member]) {
-			return members[member];
-		}
-
-		const color = colors[Math.floor(Math.random() * colors.length)];
-		members[member] = color;
-		return color;
-	}
-
-	function getMessageHTML(text: string) {
-		text = text.replace(URLReg, (match) => {
-			return `<span id="url" class="text-blue-400 hover:text-blue-600 underline underline-blue-400 cursor-pointer">${match}</div>`;
-		});
-
-		if (!regexMap[currentStream.username]) return DOMPurify.sanitize(text);
-
-		text = text.replace(regexMap[currentStream.username], (match) => {
-			const emote = emotesMap[currentStream.username][match];
-			return emote
-				? `<img class="inline-block align-middle" src="${emote.url}" alt="${match}" width="${emote.width}" height="${emote.height}" title="${match}">`
-				: match;
-		});
-
-		return DOMPurify.sanitize(text);
-	}
+	import { joinChat, type ChatMessage } from '$lib/logic/Chat.svelte';
+	import { emotesMap, regexMap } from '$lib/logic/Emotes.svelte';
+	import { watching } from '$lib/logic/Stream.svelte';
 
 	let messages: ChatMessage[] = $state([]);
 	let tempMessages: ChatMessage[] = $state([]);
@@ -85,6 +32,8 @@
 		}
 	}
 
+	const urlReg = new RegExp('(https?://[^s]+)', 'g');
+
 	async function openUrlInBrowser(event: MouseEvent) {
 		const target = event.target as HTMLElement;
 		if (target.id === 'url') {
@@ -92,16 +41,13 @@
 		}
 	}
 
-	$effect(() => {
-		if (autoScroll && chatContainer && messages.length > 0) {
-			tick().then(() => {
-				chatContainer.scrollTop = chatContainer.scrollHeight;
-			});
-		}
-	});
+	export function setNewChat(username: string) {
+		if (!username) return;
 
-	onMount(() => {
-		initChat(function (message: ChatMessage) {
+		messages = [];
+		tempMessages = [];
+
+		joinChat(username, function (message: ChatMessage) {
 			if (!autoScroll) {
 				tempMessages = [...tempMessages, message];
 			} else {
@@ -111,12 +57,15 @@
 					messages = [...messages.slice(1), message];
 				}
 			}
+
+			if (autoScroll && chatContainer && messages.length > 0) {
+				chatContainer.scrollTop = chatContainer.scrollHeight;
+			}
 		});
-	});
+	}
 </script>
 
 <div class="relative" style="height: calc(100vh - 2.0rem);">
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div
 		bind:this={chatContainer}
 		onscroll={handleScroll}
@@ -124,21 +73,42 @@
 		style="height: calc(100vh - 2.0rem); max-height: calc(100vh - 2.0rem);"
 	>
 		{#each messages as message, index (index)}
-			<!-- eslint-disable svelte/no-at-html-tags-->
 			<div class="text-pretty hover:bg-neutral-600 w-full px-2 whitespace-pre-wrap break-words">
-				<span class="font-bold {getMemberColor(message.u)}">{message.u}</span><!--
-      --><span
-					class="text-white">:&nbsp;</span
-				><!--
-
-      --><span
-					class="text-white"
-					onclick={openUrlInBrowser}
-					role="link"
-					tabindex={index}>{@html getMessageHTML(message.m)}</span
+				<span class="font-bold" style="color: {message.c}"
+					>{message.n}<span class="text-white">:&nbsp;</span></span
 				>
+
+				{#each message.m.split(urlReg) as part, index (index)}
+					{#if part.match(urlReg)}
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<span
+							id="url"
+							onclick={openUrlInBrowser}
+							role="link"
+							tabindex={index}
+							class="text-blue-400 hover:text-blue-600 underline underline-blue-400 cursor-pointer"
+							>{part}</span
+						>
+					{:else if regexMap[watching.username] && emotesMap[watching.username]}
+						{#if emotesMap[watching.username][part]}
+							{@const emote = emotesMap[watching.username][part]}
+
+							<img
+								class="inline-block align-middle"
+								src={emote.u}
+								alt={part}
+								width={emote.w}
+								height={emote.w}
+								title={part}
+							/>
+						{:else}
+							<span class="text-white">{part}</span>
+						{/if}
+					{:else}
+						<span class="text-white">{part}</span>
+					{/if}
+				{/each}
 			</div>
-			<!-- eslint-enable svelte/no-at-html-tags-->
 		{/each}
 	</div>
 
