@@ -27,7 +27,8 @@ pub struct Emote {
 
 lazy_static! {
     static ref EMOTE_HTTP_CLIENT: Client = utils::new_http_client();
-    static ref EMOTES_CACHE: Mutex<HashMap<String, Vec<Emote>>> = Mutex::new(HashMap::new());
+    static ref EMOTES_CACHE: Mutex<HashMap<String, HashMap<String, Emote>>> =
+        Mutex::new(HashMap::new());
 }
 
 pub async fn get_user_emotes(username: Path<String>) -> impl IntoResponse {
@@ -35,19 +36,19 @@ pub async fn get_user_emotes(username: Path<String>) -> impl IntoResponse {
 
     if username.is_empty() {
         error!("No username provided");
-        return (StatusCode::BAD_REQUEST, Json(vec![]));
+        return (StatusCode::BAD_REQUEST, Json(HashMap::new()));
     }
 
     let lock = USER_TO_ID.lock().await;
 
     let Some(id) = lock.get(&username) else {
         error!("No ID found for '{username}'");
-        return (StatusCode::BAD_REQUEST, Json(vec![]));
+        return (StatusCode::BAD_REQUEST, Json(HashMap::new()));
     };
 
     if id.is_empty() {
         error!("ID for '{username}' is empty");
-        return (StatusCode::BAD_REQUEST, Json(vec![]));
+        return (StatusCode::BAD_REQUEST, Json(HashMap::new()));
     }
 
     let mut lock = EMOTES_CACHE.lock().await;
@@ -56,8 +57,6 @@ pub async fn get_user_emotes(username: Path<String>) -> impl IntoResponse {
         return (StatusCode::OK, Json(emotes.clone()));
     }
 
-    let mut emotes = Vec::new();
-
     let seventv_emotes = match fetch_7tv_emotes(id).await {
         Ok(emotes) => emotes,
         Err(err) => {
@@ -65,6 +64,7 @@ pub async fn get_user_emotes(username: Path<String>) -> impl IntoResponse {
             Vec::new()
         }
     };
+
     let bettertv_emotes = match fetch_bettertv_emotes(id).await {
         Ok(emotes) => emotes,
         Err(err) => {
@@ -73,8 +73,19 @@ pub async fn get_user_emotes(username: Path<String>) -> impl IntoResponse {
         }
     };
 
-    emotes.extend(seventv_emotes);
-    emotes.extend(bettertv_emotes);
+    let mut emotes = HashMap::with_capacity(seventv_emotes.len() + bettertv_emotes.len());
+
+    emotes.extend(
+        seventv_emotes
+            .into_iter()
+            .map(|emote| (emote.name.clone(), emote)),
+    );
+
+    emotes.extend(
+        bettertv_emotes
+            .into_iter()
+            .map(|emote| (emote.name.clone(), emote)),
+    );
 
     lock.insert(id.to_string(), emotes.clone());
 
@@ -172,6 +183,7 @@ async fn fetch_7tv_emotes(id: &str) -> Result<Vec<Emote>> {
                 .host
                 .files
                 .retain(|file| file.name.starts_with('1'));
+
             (!emote.data.host.files.is_empty()).then_some(emote)
         })
         .filter_map(|emote| {
@@ -211,7 +223,7 @@ async fn fetch_and_deserialize<T: DeserializeOwned>(url: &str) -> Result<T> {
 
     let status = response.status();
 
-    if !status.is_success() {
+    if !status.is_success() && status == StatusCode::NOT_FOUND {
         let error_body = response
             .text()
             .await

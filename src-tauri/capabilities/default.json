@@ -13,9 +13,17 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
     "core:window:allow-set-title",
-    "opener:default",
+    "opener:allow-default-urls",
     "deep-link:default",
     "store:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "*"
+        }
+      ]
+    },
     {
       "identifier": "http:default",
       "allow": [

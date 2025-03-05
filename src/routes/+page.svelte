@@ -18,6 +18,12 @@
 
 	const twitchReg = new RegExp('twitch.tv/([a-zA-Z0-9_]+)');
 
+	function handleKeyDown(event: KeyboardEvent) {
+		if (event.key === 'Tab') {
+			event.preventDefault();
+		}
+	}
+
 	onMount(async () => {
 		await initUsers();
 
@@ -41,7 +47,11 @@
 	});
 </script>
 
-<div class="flex flex-col h-screen w-screen overflow-hidden bg-black text-white">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+	class="flex flex-col h-screen w-screen overflow-hidden bg-black text-white"
+	onkeydown={handleKeyDown}
+>
 	<Titlebar {toggleChat} />
 
 	<div class="flex min-h-full w-full">
@@ -49,8 +59,8 @@
 
 		<main class="flex w-full h-full">
 			<div class="flex w-full h-full">
-				{#if watching.url}
-					<Player />
+				{#if watching.username}
+					<Player username={watching.username} isLive={watching.live} url={watching.url} />
 				{:else}
 					<div class="flex flex-col items-center justify-center h-full w-full">
 						<div class="text-center">
@@ -61,9 +71,20 @@
 				{/if}
 			</div>
 
-			<div class="min-w-1/5 max-w-1/5 h-full" hidden={!showChat}>
-				<Chat />
-			</div>
+			{#key watching.username}
+				<div class="min-w-1/5 max-w-1/5 h-full" hidden={!showChat}>
+					<Chat username={watching.username} isLive={watching.live} />
+				</div>
+			{/key}
 		</main>
 	</div>
 </div>
+
+<style>
+	:global(html) {
+		user-select: none;
+		-webkit-user-select: none;
+		-ms-user-select: none;
+		outline: none;
+	}
+</style>

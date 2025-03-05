@@ -20,6 +20,13 @@
 		if (inputEl) inputEl.focus();
 	}
 
+	function handleKeyDown(event: KeyboardEvent) {
+		if (event.key === 'Escape' && (showContextMenu || showInput)) {
+			showInput = false;
+			showContextMenu = false;
+		}
+	}
+
 	let contextMenuEl: HTMLDivElement = $state(document.createElement('div'));
 	let rightClickPos = $state({ x: 0, y: 0 });
 	let showContextMenu = $state(false);
@@ -32,7 +39,7 @@
 	}
 
 	function handleLeftClick() {
-		if (showContextMenu && contextMenuEl) {
+		if (contextMenuEl && showContextMenu) {
 			showContextMenu = false;
 		}
 	}
@@ -63,6 +70,7 @@
 
 	onMount(() => {
 		document.addEventListener('click', handleLeftClick);
+		document.addEventListener('keydown', handleKeyDown);
 	});
 </script>
 
@@ -165,7 +173,7 @@
 			placeholder="Channel name"
 			spellcheck="false"
 			autocomplete="on"
-			class="fixed top-10 left-[60px] px-2 shadow-md w-32 z-50 bg-gray-800 border border-white rounded-md outline-none"
+			class="fixed top-10 left-[60px] px-2 shadow-md w-32 z-50 bg-gray-800 border border-white rounded-md outline-none user-select outline"
 		/>
 	</form>
 {/if}

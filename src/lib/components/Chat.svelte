@@ -1,9 +1,12 @@
-<script lang="ts" module>
+<script lang="ts">
+	import { onMount } from 'svelte';
+
 	import { openUrl } from '@tauri-apps/plugin-opener';
 
-	import { joinChat, type ChatMessage } from '$lib/logic/Chat.svelte';
+	import { closeExistingChat, joinChat, URLReg, type ChatMessage } from '$lib/logic/Chat.svelte';
 	import { emotesMap, regexMap } from '$lib/logic/Emotes.svelte';
-	import { watching } from '$lib/logic/Stream.svelte';
+
+	let { username, isLive } = $props();
 
 	let messages: ChatMessage[] = $state([]);
 	let tempMessages: ChatMessage[] = $state([]);
@@ -32,17 +35,33 @@
 		}
 	}
 
-	const urlReg = new RegExp('(https?://[^s]+)', 'g');
+	let URLAndEmotesReg = $state(new RegExp(''));
 
 	async function openUrlInBrowser(event: MouseEvent) {
 		const target = event.target as HTMLElement;
 		if (target.id === 'url') {
-			await openUrl(target.innerText);
+			let url = target.innerText;
+			if (!url.startsWith('http') && !url.startsWith('https')) {
+				url = `https://${url}`;
+			}
+
+			await openUrl(url);
 		}
 	}
 
-	export function setNewChat(username: string) {
-		if (!username) return;
+	$effect(() => {
+		if (autoScroll && chatContainer && messages.length > 0) {
+			chatContainer.scrollTop = chatContainer.scrollHeight;
+		}
+	});
+
+	onMount(() => {
+		if (!username || !isLive) return;
+
+		URLAndEmotesReg = new RegExp(
+			`(${URLReg.source})|(${regexMap[username].source})|([\\s]+)|([^\\s]+)`,
+			'gm'
+		);
 
 		messages = [];
 		tempMessages = [];
@@ -57,55 +76,48 @@
 					messages = [...messages.slice(1), message];
 				}
 			}
-
-			if (autoScroll && chatContainer && messages.length > 0) {
-				chatContainer.scrollTop = chatContainer.scrollHeight;
-			}
 		});
-	}
+
+		return () => {
+			closeExistingChat();
+		};
+	});
 </script>
 
-<div class="relative" style="height: calc(100vh - 2.0rem);">
+<div class="relative h-[calc(100vh-2rem)]" style="user-select: text;">
 	<div
 		bind:this={chatContainer}
 		onscroll={handleScroll}
-		class="bg-neutral-900 overflow-y-auto border-l-2 border-white/20 chat-container overflow-x-hidden h-full"
-		style="height: calc(100vh - 2.0rem); max-height: calc(100vh - 2.0rem);"
+		class="bg-neutral-900 overflow-y-auto border-l-2 border-white/20 chat-container overflow-x-hidden h-full h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)]"
 	>
 		{#each messages as message, index (index)}
-			<div class="text-pretty hover:bg-neutral-600 w-full px-2 whitespace-pre-wrap break-words">
+			<div class="text-pretty hover:bg-neutral-600 w-full px-2">
 				<span class="font-bold" style="color: {message.c}"
-					>{message.n}<span class="text-white">:&nbsp;</span></span
+					>{message.n}<span class="text-white">:</span></span
 				>
 
-				{#each message.m.split(urlReg) as part, index (index)}
-					{#if part.match(urlReg)}
-						<!-- svelte-ignore a11y_click_events_have_key_events -->
-						<span
+				{#each message.m.match(URLAndEmotesReg) || [] as fragment, index (index)}
+					{#if fragment.match(URLReg)}
+						<button
 							id="url"
 							onclick={openUrlInBrowser}
 							role="link"
-							tabindex={index}
-							class="text-blue-400 hover:text-blue-600 underline underline-blue-400 cursor-pointer"
-							>{part}</span
+							class="text-blue-400 hover:text-blue-600 underline underline-blue-400 cursor-pointer text-wrap break-words"
 						>
-					{:else if regexMap[watching.username] && emotesMap[watching.username]}
-						{#if emotesMap[watching.username][part]}
-							{@const emote = emotesMap[watching.username][part]}
-
-							<img
-								class="inline-block align-middle"
-								src={emote.u}
-								alt={part}
-								width={emote.w}
-								height={emote.w}
-								title={part}
-							/>
-						{:else}
-							<span class="text-white">{part}</span>
-						{/if}
+							{fragment}
+						</button>
+					{:else if fragment.match(regexMap[username])}
+						{@const emote = emotesMap[username][fragment]}
+						<img
+							class="inline-block align-middle"
+							src={emote.u}
+							alt={fragment}
+							width={emote.w}
+							height={emote.w}
+							title={fragment}
+						/>
 					{:else}
-						<span class="text-white">{part}</span>
+						<span class="text-white">{fragment}</span>
 					{/if}
 				{/each}
 			</div>

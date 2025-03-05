@@ -1,13 +1,12 @@
 import { fetch } from '@tauri-apps/plugin-http';
 
-import { setNewChat } from '$lib/components/Chat.svelte';
-
 import { setUser } from './Users.svelte';
 import { fetchUserEmotes, setUserEmotes } from './Emotes.svelte';
 
 type Watching = {
 	username: string;
 	url: string;
+	live: boolean;
 };
 
 type StreamResponse = {
@@ -20,7 +19,8 @@ type StreamResponse = {
 // eslint-disable-next-line prefer-const
 export let watching: Watching = $state({
 	username: '',
-	url: ''
+	url: '',
+	live: false
 });
 
 export async function fetchStream(username: string) {
@@ -37,11 +37,12 @@ export async function fetchStream(username: string) {
 export function setWatching(stream: StreamResponse) {
 	watching.username = stream.username;
 	watching.url = stream.url;
+	watching.live = stream.live;
 }
 
 export async function fetchAndSetStream(username: string) {
 	const stream = await fetchStream(username);
-	if (stream) {
+	if (stream && stream.live) {
 		const newUser = {
 			username: username,
 			live: stream.live,
@@ -55,13 +56,12 @@ export async function fetchAndSetStream(username: string) {
 			setUserEmotes(username, emotes);
 		}
 
-		setNewChat(username);
 		setWatching(stream);
 		return;
 	}
 
 	setWatching({
-		username: '',
+		username: username,
 		url: '',
 		live: false,
 		avatar: ''

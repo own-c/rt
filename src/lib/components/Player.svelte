@@ -1,18 +1,19 @@
 <script lang="ts">
 	import 'vidstack/bundle';
 
-	import { watching } from '$lib/logic/Stream.svelte';
+	let { username, isLive, url } = $props();
 </script>
 
-{#key watching.username && watching.url}
-	{#if watching.url}
+{#key username}
+	{#if isLive}
 		<media-player
 			autoplay
 			stream-type="on-demand"
-			style="--plyr-border-radius: 0px; max-height: calc(100vh - 2rem); max-width: calc(100vw - 2rem);"
+			class="max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)]"
+			style="--plyr-border-radius: 0px;"
 		>
 			<media-provider>
-				<source src={watching.url} type="application/x-mpegurl" />
+				<source src={url} type="application/x-mpegurl" />
 			</media-provider>
 
 			<media-plyr-layout

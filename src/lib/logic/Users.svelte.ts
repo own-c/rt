@@ -1,5 +1,5 @@
 import { fetch } from '@tauri-apps/plugin-http';
-import { load, Store } from '@tauri-apps/plugin-store';
+import { load, type Store } from '@tauri-apps/plugin-store';
 
 // eslint-disable-next-line prefer-const
 export let usersMap: Record<string, User> = $state({});

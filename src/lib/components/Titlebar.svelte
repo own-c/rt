@@ -33,7 +33,7 @@
 	{/if}
 
 	<div class="flex h-full">
-		{#if watching.url}
+		{#if watching.live}
 			<button
 				aria-label="Expand chat"
 				title={showChat ? 'Collapse chat' : 'Expand chat'}

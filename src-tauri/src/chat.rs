@@ -118,19 +118,14 @@ pub async fn join_chat(
 
                         match tx.send(Ok(Event::default().data(&chat_message))).await {
                             Ok(_) => {}
-                            Err(err) => {
-                                error!("Error sending chat message: {err}");
+                            Err(_) => {
+                                // Channel closed
                                 break;
                             }
                         }
                     }
                 }
                 Some(Err(err)) => {
-                    if err.to_string().is_empty() {
-                        error!("WebSocket error: empty error");
-                        return;
-                    }
-
                     error!("WebSocket error: {err:?}");
                     break;
                 }

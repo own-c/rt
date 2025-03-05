@@ -23,22 +23,21 @@ export async function fetchUserEmotes(username: string) {
 		return;
 	}
 
-	const data: Emote[] = await response.json();
+	const data: Record<string, Emote> = await response.json();
 	return data;
 }
 
-export function setUserEmotes(username: string, newEmotes: Emote[]) {
+export function setUserEmotes(username: string, newEmotes: Record<string, Emote>) {
 	if (!newEmotes) return;
 	if (emotesMap[username]) return;
 
 	emotesMap[username] = {};
 
-	for (let i = 0; i < newEmotes.length; i++) {
-		const emote = newEmotes[i];
-		emotesMap[username][emote.n] = emote;
-	}
+	Object.entries(newEmotes).forEach(([emoteName, emote]) => {
+		emotesMap[username][emoteName] = emote;
+	});
 
-	const names = newEmotes.map((emote) => emote.n);
+	const names = Object.keys(newEmotes);
 
 	if (names.length === 0) {
 		regexMap[username] = new RegExp('');
