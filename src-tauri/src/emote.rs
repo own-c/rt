@@ -1,14 +1,13 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Context, Result};
-use axum::{extract::Path, http::StatusCode, response::IntoResponse, Json};
+use axum::http::StatusCode;
 use lazy_static::lazy_static;
 use log::{error, info};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use tauri_plugin_http::reqwest::Client;
 use tokio::sync::Mutex;
 
-use crate::{user::USER_TO_ID, utils};
+use crate::{api::HTTP_CLIENT, user::USER_TO_ID_MAP};
 
 const SEVENTV_API: &str = "https://7tv.io/v3";
 const BETTERTV_API: &str = "https://api.betterttv.net/3";
@@ -26,35 +25,29 @@ pub struct Emote {
 }
 
 lazy_static! {
-    static ref EMOTE_HTTP_CLIENT: Client = utils::new_http_client();
     static ref EMOTES_CACHE: Mutex<HashMap<String, HashMap<String, Emote>>> =
         Mutex::new(HashMap::new());
 }
 
-pub async fn get_user_emotes(username: Path<String>) -> impl IntoResponse {
-    let Path(username) = username;
-
+pub async fn get_user_emotes(username: String) -> Result<HashMap<String, Emote>> {
     if username.is_empty() {
-        error!("No username provided");
-        return (StatusCode::BAD_REQUEST, Json(HashMap::new()));
+        return Err(anyhow!("No username provided"));
     }
 
-    let lock = USER_TO_ID.lock().await;
+    let lock = USER_TO_ID_MAP.lock().await;
 
     let Some(id) = lock.get(&username) else {
-        error!("No ID found for '{username}'");
-        return (StatusCode::BAD_REQUEST, Json(HashMap::new()));
+        return Err(anyhow!("No ID found for '{username}'"));
     };
 
     if id.is_empty() {
-        error!("ID for '{username}' is empty");
-        return (StatusCode::BAD_REQUEST, Json(HashMap::new()));
+        return Err(anyhow!("ID for '{username}' is empty"));
     }
 
     let mut lock = EMOTES_CACHE.lock().await;
     if let Some(emotes) = lock.get(id) {
         info!("Emotes cache hit for '{username}'");
-        return (StatusCode::OK, Json(emotes.clone()));
+        return Ok(emotes.clone());
     }
 
     let seventv_emotes = match fetch_7tv_emotes(id).await {
@@ -90,7 +83,7 @@ pub async fn get_user_emotes(username: Path<String>) -> impl IntoResponse {
     lock.insert(id.to_string(), emotes.clone());
 
     info!("Updated emotes for '{username}'");
-    (StatusCode::OK, Json(emotes))
+    Ok(emotes)
 }
 
 #[derive(Deserialize, Default)]
@@ -215,7 +208,7 @@ async fn fetch_7tv_emotes(id: &str) -> Result<Vec<Emote>> {
 }
 
 async fn fetch_and_deserialize<T: DeserializeOwned>(url: &str) -> Result<T> {
-    let response = EMOTE_HTTP_CLIENT
+    let response = HTTP_CLIENT
         .get(url)
         .send()
         .await

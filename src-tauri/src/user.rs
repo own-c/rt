@@ -1,18 +1,11 @@
 use std::{collections::HashMap, str::FromStr};
 
-use anyhow::Result;
-use axum::{
-    extract::{Path, Query},
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use anyhow::{anyhow, Result};
 use lazy_static::lazy_static;
-use log::{error, info};
-use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use log::info;
+use serde::Serialize;
+use serde_json::json;
 use tauri::{async_runtime::Mutex, Url};
-use tauri_plugin_http::reqwest::Client;
 
 use crate::{
     api::{self, LOCAL_API},
@@ -25,13 +18,8 @@ const USELIVE_QUERY_HASH: &str = "639d5f11bfb8bf3053b424d9ef650d04c4ebb7d94711d6
 const COMSCORESTREAMING_QUERY_HASH: &str =
     "e1edae8122517d013405f237ffcc124515dc6ded82480a88daef69c83b53ac01";
 
-#[derive(Deserialize)]
-pub struct LiveNowQuery {
-    usernames: String,
-}
-
-#[derive(Serialize)]
-struct Stream {
+#[derive(Serialize, Debug)]
+pub struct Stream {
     username: String,
     live: bool,
     avatar: String,
@@ -39,24 +27,20 @@ struct Stream {
 }
 
 lazy_static! {
-    static ref USER_HTTP_CLIENT: Client = utils::new_http_client();
-    pub static ref USER_TO_ID: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
+    pub static ref USER_TO_ID_MAP: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
 }
 
-pub async fn get_live_now(usernames: Query<LiveNowQuery>) -> impl IntoResponse {
-    let Query(query) = usernames;
-
-    if query.usernames.is_empty() {
-        error!("No usernames provided");
-        return (StatusCode::BAD_REQUEST, Json(vec![]));
+pub async fn get_live_now(usernames: Vec<String>) -> Result<Vec<String>> {
+    if usernames.is_empty() {
+        return Err(anyhow!("No usernames provided"));
     }
 
     let mut body = json!([]);
     let arr = body.as_array_mut().unwrap();
 
-    query.usernames.split(',').for_each(|username| {
+    for username in usernames {
         if username.is_empty() {
-            return;
+            continue;
         }
 
         arr.push(json!({
@@ -69,19 +53,17 @@ pub async fn get_live_now(usernames: Query<LiveNowQuery>) -> impl IntoResponse {
                 }
             }
         }));
-    });
+    }
 
     let uselive_query_data = match api::send_gql(body).await {
         Ok(data) => data,
         Err(err) => {
-            error!("Fetching UseLive: {err}");
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(vec![]));
+            return Err(anyhow!("Failed to fetch UseLive: {err}"));
         }
     };
 
     let Some(arr) = uselive_query_data.as_array() else {
-        error!("UseLive data was not an array");
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(vec![]));
+        return Err(anyhow!("UseLive data was not an array"));
     };
 
     let mut live = Vec::new();
@@ -120,18 +102,13 @@ pub async fn get_live_now(usernames: Query<LiveNowQuery>) -> impl IntoResponse {
         live.push(username.to_string());
     }
 
-    info!("Live now: {:?}", live);
-    (StatusCode::OK, Json(live))
+    info!("Live now: {live:?}");
+    Ok(live)
 }
 
-pub async fn get_user_stream(
-    username: Path<String>,
-) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
-    let Path(username) = username;
-
+pub async fn get_user_stream(username: String) -> Result<Stream> {
     if username.is_empty() {
-        error!("No username provided");
-        return Ok((StatusCode::BAD_REQUEST, Json(Value::Null)));
+        return Err(anyhow!("No username provided"));
     }
 
     let mut query = json!([{
@@ -181,43 +158,35 @@ pub async fn get_user_stream(
     let response = match api::send_gql(query).await {
         Ok(data) => data,
         Err(err) => {
-            error!("Fetching ComscoreStreamingQuery: {err}");
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(Value::Null)));
+            return Err(anyhow!("Failed to fetch ComscoreStreamingQuery: {err}"));
         }
     };
 
     let response = response.as_array();
-
     if response.is_none() || response.unwrap().len() != 2 {
-        error!(
-            "Missing data in query: {}",
-            serde_json::to_string(&response).unwrap()
-        );
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(Value::Null)));
+        return Err(anyhow!("Missing data in query: {response:?}"));
     }
 
     let response = response.unwrap();
-    let streaming = response.first().unwrap();
 
+    let streaming = response.first().unwrap();
     let Some(user) = streaming.pointer("/data/user") else {
-        error!("Missing user in streaming data");
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(Value::Null)));
+        return Err(anyhow!("Missing user in streaming data"));
     };
 
-    let stream = utils::extract_json_field(user, "stream")?;
-
+    let stream = utils::extract_json(user, "stream")?;
     let playback = response.last().unwrap();
 
-    let access_token = utils::extract_json_field(playback, "data")?;
-    let access_token_user = utils::extract_json_field(access_token, "user")?;
+    let access_token = utils::extract_json(playback, "data")?;
+    let access_token_user = utils::extract_json(&access_token, "user")?;
 
     let id = utils::string_from_value(access_token_user.get("id"));
-    let mut lock = USER_TO_ID.lock().await;
+
+    let mut lock = USER_TO_ID_MAP.lock().await;
     lock.insert(username.clone(), id.clone());
 
     let avatar = utils::string_from_value(access_token_user.get("profileImageURL"));
-
-    let playback_tokens = utils::extract_json_field(access_token, "streamPlaybackAccessToken")?;
+    let playback_tokens = utils::extract_json(&access_token, "streamPlaybackAccessToken")?;
 
     let playlist_url = match playlist_url(
         &username,
@@ -226,11 +195,7 @@ pub async fn get_user_stream(
     ) {
         Ok(url) => url.to_string(),
         Err(err) => {
-            error!("Creating playlist URL: {err}");
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::Value::String(err.to_string())),
-            ));
+            return Err(anyhow!("Failed to create playlist URL: {err}"));
         }
     };
 
@@ -241,8 +206,11 @@ pub async fn get_user_stream(
         url: playlist_url,
     };
 
-    let stream = serde_json::to_value(stream).unwrap();
-    Ok((StatusCode::OK, Json(stream)))
+    info!(
+        "Stream: {{ username: \"{}\", live: \"{}\" }}",
+        stream.username, stream.live
+    );
+    Ok(stream)
 }
 
 fn playlist_url(channel_name: &str, signature: &str, token: &str) -> Result<Url> {

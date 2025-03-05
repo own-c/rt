@@ -1,4 +1,4 @@
-import { fetch } from '@tauri-apps/plugin-http';
+import { invoke } from '@tauri-apps/api/core';
 import { load, type Store } from '@tauri-apps/plugin-store';
 
 // eslint-disable-next-line prefer-const
@@ -35,14 +35,7 @@ export async function setUser(newUser: User) {
 
 export async function refreshUsers() {
 	const usernames = Object.keys(usersMap);
-
-	const response = await fetch(`http://127.0.0.1:3030/live?usernames=${usernames.join(',')}`);
-
-	if (response.status !== 200) {
-		return;
-	}
-
-	const data = await response.json();
+	const data: string[] = await invoke('get_live_now', { usernames: usernames });
 
 	Object.values(usersMap).forEach((user) => {
 		if (data.includes(user.username)) {

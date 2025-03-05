@@ -1,7 +1,7 @@
-import { fetch } from '@tauri-apps/plugin-http';
+import { invoke } from '@tauri-apps/api/core';
 
 import { setUser } from './Users.svelte';
-import { fetchUserEmotes, setUserEmotes } from './Emotes.svelte';
+import { setUserEmotes, type Emote } from './Emotes.svelte';
 
 type Watching = {
 	username: string;
@@ -23,25 +23,9 @@ export let watching: Watching = $state({
 	live: false
 });
 
-export async function fetchStream(username: string) {
-	const response = await fetch(`http://127.0.0.1:3030/stream/${username}`);
-
-	if (response.status !== 200) {
-		return;
-	}
-
-	const data: StreamResponse = await response.json();
-	return data;
-}
-
-export function setWatching(stream: StreamResponse) {
-	watching.username = stream.username;
-	watching.url = stream.url;
-	watching.live = stream.live;
-}
-
 export async function fetchAndSetStream(username: string) {
-	const stream = await fetchStream(username);
+	const stream: StreamResponse = await invoke('get_user_stream', { username: username });
+
 	if (stream && stream.live) {
 		const newUser = {
 			username: username,
@@ -51,7 +35,7 @@ export async function fetchAndSetStream(username: string) {
 
 		await setUser(newUser);
 
-		const emotes = await fetchUserEmotes(username);
+		const emotes: Record<string, Emote> = await invoke('get_user_emotes', { username: username });
 		if (emotes) {
 			setUserEmotes(username, emotes);
 		}
@@ -66,4 +50,10 @@ export async function fetchAndSetStream(username: string) {
 		live: false,
 		avatar: ''
 	});
+}
+
+function setWatching(stream: StreamResponse) {
+	watching.username = stream.username;
+	watching.url = stream.url;
+	watching.live = stream.live;
 }

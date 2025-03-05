@@ -3,7 +3,7 @@ export let emotesMap: Record<string, Record<string, Emote>> = $state({});
 // eslint-disable-next-line prefer-const
 export let regexMap: Record<string, RegExp> = $state({});
 
-type Emote = {
+export type Emote = {
 	// Name
 	n: string;
 	// URL
@@ -15,17 +15,6 @@ type Emote = {
 };
 
 const emoteReg = new RegExp('[.*+?^${}()|[\\]\\\\]', 'g');
-
-export async function fetchUserEmotes(username: string) {
-	const response = await fetch(`http://127.0.0.1:3030/emotes/${username}`);
-
-	if (response.status !== 200) {
-		return;
-	}
-
-	const data: Record<string, Emote> = await response.json();
-	return data;
-}
 
 export function setUserEmotes(username: string, newEmotes: Record<string, Emote>) {
 	if (!newEmotes) return;

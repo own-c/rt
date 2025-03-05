@@ -42,5 +42,5 @@ rustup component add llvm-tools
 - Use a shared public .env for some settings in both frontend and backend.
 - Add GitHub Actions to build (with `--no-bundle` for now) and provide artifacts for some platforms.
 - Move config, data and logs to a single location.
-- Improve logging.
-- Since the frontend needs a proxy to watch the stream, I decided to use just http to communicate with the backend, maybe moving to #[tauri::command] might be a good idea.
+- Handle chat messages (including regex/emotes) from the backend, which would return fragments that the frontend would just render.
+- Somehow make both endpoints (proxy/chat) work with `invoke`/another method that doesn't require a crate like axum.

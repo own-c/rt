@@ -24,7 +24,12 @@ enum M3U8Result {
 }
 
 lazy_static! {
-    static ref PROXY_HTTP_CLIENT: Client = Client::new();
+    pub static ref PROXY_HTTP_CLIENT: Client = Client::builder()
+        .gzip(true)
+        .use_rustls_tls()
+        .https_only(true)
+        .build()
+        .unwrap();
 }
 
 pub async fn proxy_stream(url: Query<ProxyStreamQuery>) -> impl IntoResponse {

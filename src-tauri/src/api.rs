@@ -14,7 +14,7 @@ use tauri_plugin_http::reqwest::{
 use tokio::net::TcpListener;
 use tower_http::cors::{Any, CorsLayer};
 
-use crate::{chat, emote, proxy, user, utils};
+use crate::{chat, proxy};
 
 const GRAPHQL_API: &str = "https://gql.twitch.tv/gql";
 
@@ -25,7 +25,13 @@ const LOCAL_API_ADDR: &str = "127.0.0.1:3030";
 const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 
 lazy_static! {
-    static ref HTTP_CLIENT: Client = utils::new_http_client();
+    pub static ref HTTP_CLIENT: Client = Client::builder()
+        .gzip(true)
+        .use_rustls_tls()
+        .https_only(true)
+        .http2_prior_knowledge()
+        .build()
+        .unwrap();
 }
 
 pub async fn start_api_server() -> Result<()> {
@@ -42,9 +48,6 @@ pub async fn start_api_server() -> Result<()> {
 
     let app = Router::new()
         .route("/proxy", get(proxy::proxy_stream))
-        .route("/live", get(user::get_live_now))
-        .route("/stream/{username}", get(user::get_user_stream))
-        .route("/emotes/{username}", get(emote::get_user_emotes))
         .route("/chat/{username}", get(chat::join_chat))
         .with_state(Arc::new(Mutex::new(ws_stream)))
         .layer(cors_layer);
