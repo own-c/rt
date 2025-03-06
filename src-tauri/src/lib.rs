@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use log::error;
 use tauri::async_runtime;
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -31,17 +29,6 @@ async fn get_user_stream(username: String) -> Result<Stream, String> {
         Ok(stream) => Ok(stream),
         Err(err) => {
             error!("get_user_stream failed: {err}");
-            Err(err.to_string())
-        }
-    }
-}
-
-#[tauri::command]
-async fn get_user_emotes(username: String) -> Result<HashMap<String, emote::Emote>, String> {
-    match emote::get_user_emotes(username).await {
-        Ok(emotes) => Ok(emotes),
-        Err(err) => {
-            error!("get_user_emotes failed: {err}");
             Err(err.to_string())
         }
     }
@@ -84,11 +71,7 @@ pub fn run() {
         });
 
     builder
-        .invoke_handler(tauri::generate_handler![
-            get_user_stream,
-            get_live_now,
-            get_user_emotes
-        ])
+        .invoke_handler(tauri::generate_handler![get_user_stream, get_live_now,])
         .run(tauri::generate_context!())
         .expect("while running tauri application");
 }

@@ -2,7 +2,7 @@
 	import { onMount, tick } from 'svelte';
 
 	import { refreshUsers, removeUser, usersMap } from '$lib/logic/Users.svelte';
-	import { fetchAndSetStream } from '$lib/logic/Stream.svelte';
+	import { fetchAndSetStream, watching } from '$lib/logic/Stream.svelte';
 
 	let loading = $state(false);
 
@@ -119,12 +119,16 @@
 			<button
 				id={user.username}
 				title={user.username}
-				disabled={!usersMap || Object.keys(usersMap).length === 0 || loading}
-				class="flex flex-col items-center w-full cursor-pointer hover:bg-neutral-600 py-1 {!usersMap ||
+				disabled={!usersMap ||
+					Object.keys(usersMap).length === 0 ||
+					loading ||
+					user.username === watching.username}
+				class="flex flex-col items-center w-full py-1 {!usersMap ||
 				Object.keys(usersMap).length === 0 ||
-				loading
+				loading ||
+				user.username === watching.username
 					? 'opacity-50'
-					: ''}"
+					: 'cursor-pointer hover:bg-neutral-600'}"
 				onclick={async () => await changeStream(user.username)}
 				oncontextmenu={handleContextMenu}
 			>

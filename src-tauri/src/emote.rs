@@ -7,12 +7,12 @@ use log::{error, info};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::{api::HTTP_CLIENT, user::USER_TO_ID_MAP};
+use crate::api::HTTP_CLIENT;
 
 const SEVENTV_API: &str = "https://7tv.io/v3";
 const BETTERTV_API: &str = "https://api.betterttv.net/3";
 
-#[derive(Serialize, Default, Clone)]
+#[derive(Serialize, Default, Clone, Debug)]
 pub struct Emote {
     #[serde(rename = "n")]
     pub name: String,
@@ -25,29 +25,22 @@ pub struct Emote {
 }
 
 lazy_static! {
-    static ref EMOTES_CACHE: Mutex<HashMap<String, HashMap<String, Emote>>> =
+    pub static ref EMOTES_CACHE: Mutex<HashMap<String, HashMap<String, Emote>>> =
         Mutex::new(HashMap::new());
 }
 
-pub async fn get_user_emotes(username: String) -> Result<HashMap<String, Emote>> {
+pub async fn get_user_emotes(username: &str, id: &str) -> Result<()> {
     if username.is_empty() {
         return Err(anyhow!("No username provided"));
     }
-
-    let lock = USER_TO_ID_MAP.lock().await;
-
-    let Some(id) = lock.get(&username) else {
-        return Err(anyhow!("No ID found for '{username}'"));
-    };
 
     if id.is_empty() {
         return Err(anyhow!("ID for '{username}' is empty"));
     }
 
-    let mut lock = EMOTES_CACHE.lock().await;
-    if let Some(emotes) = lock.get(id) {
-        info!("Emotes cache hit for '{username}'");
-        return Ok(emotes.clone());
+    let mut cache = EMOTES_CACHE.lock().await;
+    if cache.contains_key(username) {
+        return Ok(());
     }
 
     let seventv_emotes = match fetch_7tv_emotes(id).await {
@@ -80,10 +73,17 @@ pub async fn get_user_emotes(username: String) -> Result<HashMap<String, Emote>>
             .map(|emote| (emote.name.clone(), emote)),
     );
 
-    lock.insert(id.to_string(), emotes.clone());
+    info!("Updating emotes for '{username}'");
+    cache
+        .entry(username.to_string())
+        .or_insert_with(HashMap::new)
+        .extend(
+            emotes
+                .iter()
+                .map(|(name, emote)| (name.clone(), emote.clone())),
+        );
 
-    info!("Updated emotes for '{username}'");
-    Ok(emotes)
+    Ok(())
 }
 
 #[derive(Deserialize, Default)]

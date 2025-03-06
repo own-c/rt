@@ -1,7 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 
 import { setUser } from './Users.svelte';
-import { setUserEmotes, type Emote } from './Emotes.svelte';
 
 type Watching = {
 	username: string;
@@ -34,11 +33,6 @@ export async function fetchAndSetStream(username: string) {
 		};
 
 		await setUser(newUser);
-
-		const emotes: Record<string, Emote> = await invoke('get_user_emotes', { username: username });
-		if (emotes) {
-			setUserEmotes(username, emotes);
-		}
 
 		setWatching(stream);
 		return;

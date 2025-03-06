@@ -57,6 +57,7 @@ tauri-plugin-http = { version = "2", features = ["gzip"] }
 tauri-plugin-deep-link = "2"
 tauri-plugin-store = "2"
 tauri-plugin-log = "2"
+async-stream = "0.3.6"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = { version = "2.0.0", features = ["deep-link"] }

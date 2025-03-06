@@ -42,5 +42,4 @@ rustup component add llvm-tools
 - Use a shared public .env for some settings in both frontend and backend.
 - Add GitHub Actions to build (with `--no-bundle` for now) and provide artifacts for some platforms.
 - Move config, data and logs to a single location.
-- Handle chat messages (including regex/emotes) from the backend, which would return fragments that the frontend would just render.
-- Somehow make both endpoints (proxy/chat) work with `invoke`/another method that doesn't require a crate like axum.
+- Somehow make both endpoints (proxy/chat) work with `invoke`/another method that doesn't require a crate like axum (to avoid having a web server running).

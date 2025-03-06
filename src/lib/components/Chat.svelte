@@ -3,13 +3,14 @@
 
 	import { openUrl } from '@tauri-apps/plugin-opener';
 
-	import { closeExistingChat, joinChat, URLReg, type ChatMessage } from '$lib/logic/Chat.svelte';
-	import { emotesMap, regexMap } from '$lib/logic/Emotes.svelte';
+	import { closeExistingChat, joinChat, type ChatMessage } from '$lib/logic/Chat.svelte';
 
 	let { username, isLive } = $props();
 
 	let messages: ChatMessage[] = $state([]);
 	let tempMessages: ChatMessage[] = $state([]);
+	let pendingMessages: ChatMessage[] = [];
+	let updateScheduled = false;
 
 	let chatContainer: HTMLDivElement = $state(document.createElement('div'));
 	let autoScroll = $state(true);
@@ -25,8 +26,8 @@
 			autoScroll = true;
 			if (tempMessages.length > 0) {
 				let combined = [...messages, ...tempMessages];
-				if (combined.length > 500) {
-					combined = combined.slice(combined.length - 500);
+				if (combined.length > 300) {
+					combined = combined.slice(combined.length - 300);
 				}
 
 				messages = combined;
@@ -34,8 +35,6 @@
 			}
 		}
 	}
-
-	let URLAndEmotesReg = $state(new RegExp(''));
 
 	async function openUrlInBrowser(event: MouseEvent) {
 		const target = event.target as HTMLElement;
@@ -58,22 +57,31 @@
 	onMount(() => {
 		if (!username || !isLive) return;
 
-		URLAndEmotesReg = new RegExp(
-			`(${URLReg.source})|(${regexMap[username].source})|([\\s]+)|([^\\s]+)`,
-			'gm'
-		);
-
 		messages = [];
 		tempMessages = [];
+		pendingMessages = [];
+		updateScheduled = false;
 
 		joinChat(username, function (message: ChatMessage) {
 			if (!autoScroll) {
 				tempMessages = [...tempMessages, message];
 			} else {
-				if (messages.length < 500) {
-					messages = [...messages, message];
-				} else {
-					messages = [...messages.slice(1), message];
+				pendingMessages.push(message);
+
+				if (!updateScheduled) {
+					updateScheduled = true;
+
+					// Is this really working
+					requestAnimationFrame(() => {
+						let combined = [...messages, ...pendingMessages];
+						if (combined.length > 300) {
+							combined = combined.slice(combined.length - 300);
+						}
+
+						messages = combined;
+						pendingMessages = [];
+						updateScheduled = false;
+					});
 				}
 			}
 		});
@@ -96,28 +104,27 @@
 					>{message.n}<span class="text-white">:</span></span
 				>
 
-				{#each message.m.match(URLAndEmotesReg) || [] as fragment, index (index)}
-					{#if fragment.match(URLReg)}
+				{#each message.m as fragment, index (index)}
+					{#if fragment.t === 0}
+						<span class="text-white">{fragment.c}</span>
+					{:else if fragment.t === 1 && fragment.e}
+						<img
+							class="mx-2 inline-block align-middle"
+							src={fragment.e.u}
+							alt={fragment.e.n}
+							width={fragment.e.w}
+							height={fragment.e.h}
+							title={fragment.e.n}
+						/>
+					{:else}
 						<button
 							id="url"
 							onclick={openUrlInBrowser}
 							role="link"
-							class="text-blue-400 hover:text-blue-600 underline underline-blue-400 cursor-pointer text-wrap break-words"
+							class="mx-2 text-blue-400 hover:text-blue-600 underline underline-blue-400 cursor-pointer text-wrap break-words"
 						>
-							{fragment}
+							{fragment.c}
 						</button>
-					{:else if fragment.match(regexMap[username])}
-						{@const emote = emotesMap[username][fragment]}
-						<img
-							class="inline-block align-middle"
-							src={emote.u}
-							alt={fragment}
-							width={emote.w}
-							height={emote.w}
-							title={fragment}
-						/>
-					{:else}
-						<span class="text-white">{fragment}</span>
 					{/if}
 				{/each}
 			</div>

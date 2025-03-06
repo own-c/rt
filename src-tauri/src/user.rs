@@ -2,14 +2,14 @@ use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, Result};
 use lazy_static::lazy_static;
-use log::info;
+use log::{error, info};
 use serde::Serialize;
 use serde_json::json;
 use tauri::{async_runtime::Mutex, Url};
 
 use crate::{
     api::{self, LOCAL_API},
-    utils,
+    emote, utils,
 };
 
 const USHER_API: &str = "https://usher.ttvnw.net/api/channel/hls";
@@ -181,9 +181,12 @@ pub async fn get_user_stream(username: String) -> Result<Stream> {
     let access_token_user = utils::extract_json(&access_token, "user")?;
 
     let id = utils::string_from_value(access_token_user.get("id"));
-
-    let mut lock = USER_TO_ID_MAP.lock().await;
-    lock.insert(username.clone(), id.clone());
+    match emote::get_user_emotes(&username, &id).await {
+        Ok(()) => {}
+        Err(err) => {
+            error!("Failed to get emotes: {err}");
+        }
+    }
 
     let avatar = utils::string_from_value(access_token_user.get("profileImageURL"));
     let playback_tokens = utils::extract_json(&access_token, "streamPlaybackAccessToken")?;
@@ -210,6 +213,7 @@ pub async fn get_user_stream(username: String) -> Result<Stream> {
         "Stream: {{ username: \"{}\", live: \"{}\" }}",
         stream.username, stream.live
     );
+
     Ok(stream)
 }
 

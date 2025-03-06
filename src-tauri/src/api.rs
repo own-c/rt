@@ -1,17 +1,19 @@
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
-use async_runtime::Mutex;
 use axum::{routing::get, Router};
 use lazy_static::lazy_static;
 use log::info;
 use serde_json::Value;
-use tauri::async_runtime;
 use tauri_plugin_http::reqwest::{
     header::{HeaderMap, HeaderValue},
-    Client,
+    Client as HttpClient,
 };
-use tokio::net::TcpListener;
+use tokio::{
+    net::TcpListener,
+    sync::{broadcast, mpsc},
+};
+use tokio_tungstenite::tungstenite::Message;
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::{chat, proxy};
@@ -25,13 +27,20 @@ const LOCAL_API_ADDR: &str = "127.0.0.1:3030";
 const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 
 lazy_static! {
-    pub static ref HTTP_CLIENT: Client = Client::builder()
+    pub static ref HTTP_CLIENT: HttpClient = HttpClient::builder()
         .gzip(true)
         .use_rustls_tls()
         .https_only(true)
         .http2_prior_knowledge()
         .build()
         .unwrap();
+}
+
+pub struct AppState {
+    /// For sending messages to the websocket.
+    pub ws_sender: mpsc::Sender<Message>,
+    /// For sending received websocket messages to SSE subscribers.
+    pub ws_broadcast: broadcast::Sender<Message>,
 }
 
 pub async fn start_api_server() -> Result<()> {
@@ -44,15 +53,20 @@ pub async fn start_api_server() -> Result<()> {
     info!("Binding API server on {}", LOCAL_API_ADDR);
     let listener = TcpListener::bind(LOCAL_API_ADDR).await?;
 
-    let ws_stream = chat::init_irc_connection().await?;
+    let (ws_sender, ws_broadcast) = chat::init_irc_connection().await?;
+
+    let state = Arc::new(AppState {
+        ws_sender,
+        ws_broadcast,
+    });
 
     let app = Router::new()
         .route("/proxy", get(proxy::proxy_stream))
         .route("/chat/{username}", get(chat::join_chat))
-        .with_state(Arc::new(Mutex::new(ws_stream)))
+        .with_state(state)
         .layer(cors_layer);
 
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app).await?;
     Ok(())
 }
 

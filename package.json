@@ -43,7 +43,6 @@
 		"@tauri-apps/plugin-log": "^2.2.3",
 		"@tauri-apps/plugin-opener": "^2.2.6",
 		"@tauri-apps/plugin-store": "^2.2.0",
-		"dompurify": "^3.2.4",
 		"hls.js": "^1.5.20",
 		"vidstack": "^1.12.13"
 	}
