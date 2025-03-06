@@ -13,7 +13,6 @@ use tokio::{
     net::TcpListener,
     sync::{broadcast, mpsc},
 };
-use tokio_tungstenite::tungstenite::Message;
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::{chat, proxy};
@@ -38,9 +37,9 @@ lazy_static! {
 
 pub struct AppState {
     /// For sending messages to the websocket.
-    pub ws_sender: mpsc::Sender<Message>,
+    pub ws_sender: mpsc::Sender<String>,
     /// For sending received websocket messages to SSE subscribers.
-    pub ws_broadcast: broadcast::Sender<Message>,
+    pub ws_broadcast: broadcast::Sender<String>,
 }
 
 pub async fn start_api_server() -> Result<()> {

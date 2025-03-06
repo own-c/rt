@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use crate::{
     api::AppState,
@@ -37,11 +37,11 @@ struct ChatMessage {
     #[serde(rename = "f")]
     first_msg: String,
     #[serde(rename = "m")]
-    fragments: Vec<MessageFragment>,
+    fragments: Vec<Fragment>,
 }
 
 #[derive(Serialize)]
-struct MessageFragment {
+struct Fragment {
     #[serde(rename = "t")]
     r#type: u8,
     #[serde(rename = "c")]
@@ -54,7 +54,7 @@ lazy_static! {
     pub static ref CURRENT_CHAT: Mutex<Option<String>> = Mutex::new(None);
 
     static ref IRC_CHAT_REGEX: Regex = Regex::new(
-         r"(?m)^@.*?color=(?P<color>[^;]*).*?display-name=(?P<display_name>[^;]*).*?first-msg=(?P<first_msg>[^;]*).*?tmi-sent-ts=(?P<tmi_sent_ts>[^;]*).*?PRIVMSG\s+\S+\s+:(?P<message>.*)$"
+         r"(?m)^@.*?color=(?P<color>[^;]*).*?display-name=(?P<display_name>[^;]*).*?first-msg=(?P<first_msg>[^;]*).*?PRIVMSG\s+\S+\s+:(?P<message>.*)$"
     ).unwrap();
 
     static ref URL_REG: Regex = Regex::new(
@@ -62,7 +62,7 @@ lazy_static! {
     ).unwrap();
 }
 
-pub async fn init_irc_connection() -> Result<(mpsc::Sender<Message>, broadcast::Sender<Message>)> {
+pub async fn init_irc_connection() -> Result<(mpsc::Sender<String>, broadcast::Sender<String>)> {
     let (mut ws_stream, _) = tokio_tungstenite::connect_async(WS_CHAT_URL).await?;
 
     ws_stream.send("CAP REQ :twitch.tv/tags".into()).await?;
@@ -73,8 +73,8 @@ pub async fn init_irc_connection() -> Result<(mpsc::Sender<Message>, broadcast::
         .send(format!("NICK justinfan{random_number}").into())
         .await?;
 
-    let (ws_sender_tx, mut ws_sender_rx) = mpsc::channel::<Message>(32);
-    let (ws_broadcast_tx, _) = broadcast::channel::<Message>(32);
+    let (ws_sender_tx, mut ws_sender_rx) = mpsc::channel::<String>(100);
+    let (ws_broadcast_tx, _) = broadcast::channel::<String>(100);
 
     let state = Arc::new(AppState {
         ws_sender: ws_sender_tx.clone(),
@@ -87,38 +87,38 @@ pub async fn init_irc_connection() -> Result<(mpsc::Sender<Message>, broadcast::
             let (mut ws_sink, mut ws_stream) = ws_stream.split();
             let broadcast = state.ws_broadcast.clone();
 
-            let ping = Message::Text("PING".into());
-            let pong = Message::Text("PONG".into());
+            let ping = String::from("PING");
+            let pong = String::from("PONG");
 
             loop {
+                let ping_clone = ping.clone();
+
                 tokio::select! {
                     maybe_msg = ws_stream.next() => {
                         match maybe_msg {
-                            Some(Ok(msg)) => if let Message::Text(utf8) = msg {
-                                    let text = Message::Text(utf8);
-                                    info!("Received message: {}",text.clone().into_text().unwrap_or_default());
-                                    if text == ping {
-                                        info!("Received ping");
-                                        if let Err(err) = ws_sink.send(Message::Text("PONG".into())).await {
+                            Some(Ok(msg)) => {
+                                if let Message::Text(utf8) = msg {
+                                    let text = utf8.to_string();
+
+                                    if text.starts_with("PING") {
+                                        if let Err(err) = ws_sink.send(Message::text(&pong)).await {
                                             error!("Failed to send Pong: {err}");
                                         } else {
-                                            info!("Returned pong");
+                                            let sender_clone = state.ws_sender.clone();
+
+                                            tokio::spawn(async move {
+                                                time::sleep(Duration::from_secs(60)).await;
+                                                if let Err(err) = sender_clone.send(ping_clone).await {
+                                                    error!("Failed to send ping: {err}");
+                                                } else {
+                                                    info!("Sent scheduled ping");
+                                                }
+                                            });
                                         }
-                                    } else if text == pong {
-                                        info!("Received pong, scheduling ping in 1 minute");
-                                        let sender_clone = state.ws_sender.clone();
-                                        let ping_clone = ping.clone();
-                                        tokio::spawn(async move {
-                                            time::sleep(Duration::from_secs(60)).await;
-                                            if let Err(err) = sender_clone.send(ping_clone).await {
-                                                error!("Failed to send ping: {err}");
-                                            } else {
-                                                info!("Sent ping after pong");
-                                            }
-                                        });
-                                    } else {
+                                    }  else {
                                         let _ = broadcast.send(text);
                                     }
+                                }
                             },
                             Some(Err(e)) => {
                                 error!("WebSocket error: {e}");
@@ -129,7 +129,7 @@ pub async fn init_irc_connection() -> Result<(mpsc::Sender<Message>, broadcast::
                     },
                     maybe_sender_msg = ws_sender_rx.recv() => {
                         if let Some(msg) = maybe_sender_msg {
-                            if let Err(err) = ws_sink.send(msg).await {
+                            if let Err(err) = ws_sink.send(msg.into()).await {
                                 error!("Failed to send message to WebSocket: {err}");
                                 break;
                             }
@@ -157,22 +157,20 @@ pub async fn join_chat(
     let user_emotes = {
         let user_emotes_lock = EMOTES_CACHE.lock().await;
         if let Some(emotes) = user_emotes_lock.get(&username) {
-            emotes.clone()
+            Arc::new(emotes.clone())
         } else {
             error!("Emotes not found for '{username}'");
-            Default::default()
+            Arc::new(HashMap::default())
         }
     };
 
     let mut current_stream = CURRENT_CHAT.lock().await;
 
-    let mut rx = state.ws_broadcast.subscribe();
-
     if current_stream.is_some() {
         let old = current_stream.clone().unwrap();
         if old != username {
             info!("Leaving '{old}' chat");
-            if let Err(err) = state.ws_sender.send(format!("PART #{old}").into()).await {
+            if let Err(err) = state.ws_sender.send(format!("PART #{old}")).await {
                 error!("Send: {err}");
             }
 
@@ -181,10 +179,9 @@ pub async fn join_chat(
     }
 
     info!("Joining '{username}' chat");
-
     if state
         .ws_sender
-        .send(format!("JOIN #{username}").into())
+        .send(format!("JOIN #{username}"))
         .await
         .is_ok()
     {
@@ -193,12 +190,13 @@ pub async fn join_chat(
         error!("Failed to join chat: {username}");
     }
 
+    let mut rx = state.ws_broadcast.subscribe();
+
     let events_stream = async_stream::stream! {
         loop {
             match rx.recv().await {
-                Ok(msg) => {
-                    let text = msg.to_text().unwrap();
-                    let caps = IRC_CHAT_REGEX.captures( text);
+                Ok(text) => {
+                    let caps = IRC_CHAT_REGEX.captures(&text);
                             if caps.is_none() {
                                 continue;
                             }
@@ -217,50 +215,9 @@ pub async fn join_chat(
                                 .name("message")
                                 .unwrap()
                                 .as_str()
-                                .trim_end()
-                                .to_string();
+                                .trim_end();
 
-                            let mut fragments = Vec::new();
-                            // This initializer was revealed to me in a dream
-                            let mut last_type = 10;
-
-                            for token in text.split_whitespace() {
-                                let current_type;
-
-                                if URL_REG.is_match(token) {
-                                    current_type = 2;
-                                } else if user_emotes.contains_key(token) {
-                                    current_type = 1;
-                                } else {
-                                    current_type = 0;
-                                }
-
-                                if current_type != last_type {
-                                    let emote = if current_type == 1 {
-                                        user_emotes.get(token).cloned()
-                                    } else {
-                                        None
-                                    };
-
-                                    fragments.push(MessageFragment {
-                                        r#type: current_type,
-                                        content: token.to_string(),
-                                        emote,
-                                    });
-
-                                    last_type = current_type;
-                                    continue;
-                                }
-
-                                if current_type == 0 {
-                                    // Append to last fragment with an whitespace
-                                    fragments
-                                        .last_mut()
-                                        .unwrap()
-                                        .content
-                                        .push_str(format!(" {token}").as_str());
-                                }
-                            }
+                            let fragments =  parse_chat_fragments(text, &user_emotes);
 
                             let chat_message = ChatMessage {
                                 color,
@@ -291,4 +248,54 @@ pub async fn join_chat(
     Sse::new(events)
         .keep_alive(KeepAlive::default())
         .into_response()
+}
+
+fn parse_chat_fragments(
+    message_content: &str,
+    user_emotes: &HashMap<String, Emote>,
+) -> Vec<Fragment> {
+    let mut fragments = Vec::new();
+
+    // This initializer value was revealed to me in a dream
+    let mut last_type = 10;
+
+    for token in message_content.split_whitespace() {
+        let current_type;
+
+        if URL_REG.is_match(token) {
+            current_type = 2;
+        } else if user_emotes.contains_key(token) {
+            current_type = 1;
+        } else {
+            current_type = 0;
+        }
+
+        if current_type != last_type {
+            let emote = if current_type == 1 {
+                user_emotes.get(token).cloned()
+            } else {
+                None
+            };
+
+            fragments.push(Fragment {
+                r#type: current_type,
+                content: token.to_string(),
+                emote,
+            });
+
+            last_type = current_type;
+            continue;
+        }
+
+        if current_type == 0 {
+            // Append to last fragment with an whitespace
+            fragments
+                .last_mut()
+                .unwrap()
+                .content
+                .push_str(format!(" {token}").as_str());
+        }
+    }
+
+    fragments
 }

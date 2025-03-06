@@ -121,7 +121,7 @@
 							id="url"
 							onclick={openUrlInBrowser}
 							role="link"
-							class="mx-2 text-blue-400 hover:text-blue-600 underline underline-blue-400 cursor-pointer text-wrap break-words"
+							class="mx-2 break-all text-blue-400 hover:text-blue-600 underline underline-blue-400 cursor-pointer"
 						>
 							{fragment.c}
 						</button>
