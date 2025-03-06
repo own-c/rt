@@ -45,12 +45,13 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: npm run check
 
-      - name: Cache Cargo dependencies and toolchain
+      - name: Cache Rust
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
+            src-tauri/target
           key: ${{ runner.os }}-cargo-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-${{ steps.toolchain.outputs.cachekey }}-
@@ -74,4 +75,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
+          name: ${{ runner.os }}
           path: src-tauri/target/release/bundle/

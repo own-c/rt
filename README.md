@@ -2,13 +2,32 @@
 
 A Twitch frontend written in Rust using SvelteKit and Tauri.
 
-Add users manually or by going to `rt://www.twitch.tv/echo_esports` (replacing `https` with `rt` in the url), watch streams in any of the available resolutions and view chat with 7tv and BetterTTV emotes support.
+<table>
+    <tr>
+        <td align="center">
+            <img alt="zfg1 playing OOT Randomizer" src=".github/assets/screenshot-1.jpg" width="500"><br>
+            <a href="https://www.twitch.tv/zfg1">
+                <em>zfg1 playing OOT. Chat on Copium for Prime 4.</em>
+            </a>
+        </td>
+        <td align="center">
+            <img alt="paganmars playing Monster Hunter Wilds" src=".github/assets/screenshot-2.jpg" width="500"><br>
+            <a href="https://www.twitch.tv/paganmars">
+                <em>paganmars playing Monster Hunter Wilds. An excelent use of screen space with PiP.</em>
+            </a>
+        </td>
+    </tr>
+</table>
+
+Add users manually or by replacing `https` with `rt` in the url, watch streams in any of the available resolutions and view chat with 7tv and BetterTTV emotes support.
 
 > This is not meant to be a replacement for the official Twitch app/site, some features (account login, send chat messages, etc) are not implemented and not in the scope of this project.
 
-## Structure
+## About
 
-Tested on Windows, other desktops should work but haven't been tested. I manually upload the latest working binary to the [releases](https://github.com/Kyagara/rt/releases) page, I don't name a version number currently so you need to check when the latest release is uploaded.
+Artifacts are uploaded [here](https://github.com/Kyagara/rt/actions) on successful builds, only bundles (installers) are built at the moment.
+
+> Tested on Windows, other desktops should work but haven't been tested.
 
 - Frontend `src`: [SvelteKit](https://svelte.dev/docs/kit/introduction). Using [tailwindcss](https://tailwindcss.com) and [Vidstack](https://github.com/vidstack/player).
 - Backend `src-tauri`: [Rust](https://www.rust-lang.org/), [Tauri](https://tauri.app/). Using [axum](https://github.com/tokio-rs/axum).
@@ -22,15 +41,6 @@ Logs are stored in the following locations:
 
 - Linux: `$XDG_DATA_HOME/com.rt.app/logs` or `$HOME/.local/share/com.rt.app/logs`
 - Windows: `%LocalAppData%/com.rt.app/logs`
-
-## Building
-
-The project is build using `lld` linker, so you might need to install it before building:
-
-```bash
-cargo install -f cargo-binutils
-rustup component add llvm-tools
-```
 
 ## TODO
 
