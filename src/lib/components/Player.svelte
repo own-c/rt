@@ -18,7 +18,6 @@
 
 			<media-plyr-layout
 				seek-time={5}
-				display-duration={true}
 				controls={[
 					'play-large',
 					'play',

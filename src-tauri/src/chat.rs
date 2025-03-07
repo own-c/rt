@@ -102,16 +102,14 @@ pub async fn init_irc_connection() -> Result<(mpsc::Sender<String>, broadcast::S
 
                                     if text.starts_with("PING") {
                                         if let Err(err) = ws_sink.send(Message::text(&pong)).await {
-                                            error!("Failed to send Pong: {err}");
+                                            error!("Failed to respond to ping: {err}");
                                         } else {
                                             let sender_clone = state.ws_sender.clone();
 
                                             tokio::spawn(async move {
                                                 time::sleep(Duration::from_secs(60)).await;
                                                 if let Err(err) = sender_clone.send(ping_clone).await {
-                                                    error!("Failed to send ping: {err}");
-                                                } else {
-                                                    info!("Sent scheduled ping");
+                                                    error!("Failed to send scheduled ping: {err}");
                                                 }
                                             });
                                         }
@@ -120,8 +118,12 @@ pub async fn init_irc_connection() -> Result<(mpsc::Sender<String>, broadcast::S
                                     }
                                 }
                             },
-                            Some(Err(e)) => {
-                                error!("WebSocket error: {e}");
+                            Some(Err(err)) => {
+                                if err.to_string().is_empty() {
+                                    continue;
+                                }
+
+                                error!("WebSocket error: {err}");
                                 break;
                             }
                             None => break,
