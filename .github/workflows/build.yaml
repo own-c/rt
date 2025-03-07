@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache npm dependencies
+      - name: Cache npm
         uses: actions/cache@v4
         with:
           path: ~/.npm
@@ -49,8 +49,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
+            ~/.cargo
             src-tauri/target
           key: ${{ runner.os }}-cargo-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |

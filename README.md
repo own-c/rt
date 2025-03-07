@@ -5,16 +5,20 @@ A Twitch frontend written in Rust using SvelteKit and Tauri.
 <table>
     <tr>
         <td align="center">
-            <img alt="zfg1 playing OOT Randomizer" src=".github/assets/screenshot-1.jpg" width="500"><br>
-            <a href="https://www.twitch.tv/zfg1">
-                <em>zfg1 playing OOT. Chat on Copium for Prime 4.</em>
-            </a>
+            <img alt="zfg1 playing OOT Randomizer" src=".github/assets/screenshot-1.jpg" width="500">
+            <em>
+                <div>
+                    <a href="https://www.twitch.tv/zfg1">zfg1</a> playing OOT. Chat on Copium for Prime 4.
+                </div>
+            </em>
         </td>
         <td align="center">
-            <img alt="paganmars playing Monster Hunter Wilds" src=".github/assets/screenshot-2.jpg" width="500"><br>
-            <a href="https://www.twitch.tv/paganmars">
-                <em>paganmars playing Monster Hunter Wilds. An excelent use of screen space with PiP.</em>
-            </a>
+            <img alt="paganmars playing Monster Hunter Wilds" src=".github/assets/screenshot-2.jpg" width="500">
+            <em>
+                <div>
+                    <a href="https://www.twitch.tv/paganmars">paganmars</a> playing Monster Hunter Wilds. An excelent use of screen space with PiP.
+                </div>
+            </em>
         </td>
     </tr>
 </table>
@@ -29,8 +33,8 @@ Artifacts are uploaded [here](https://github.com/Kyagara/rt/actions) on successf
 
 > Tested on Windows, other desktops should work but haven't been tested.
 
-- Frontend `src`: [SvelteKit](https://svelte.dev/docs/kit/introduction). Using [tailwindcss](https://tailwindcss.com) and [Vidstack](https://github.com/vidstack/player).
-- Backend `src-tauri`: [Rust](https://www.rust-lang.org/), [Tauri](https://tauri.app/). Using [axum](https://github.com/tokio-rs/axum).
+- Frontend `src`: [SvelteKit](https://svelte.dev/docs/kit/introduction), [tailwindcss](https://tailwindcss.com) and [Vidstack](https://github.com/vidstack/player).
+- Backend `src-tauri`: [Tauri](https://tauri.app/).
 
 Data is stored in the following locations:
 
@@ -50,7 +54,5 @@ Logs are stored in the following locations:
 - Button to show current stream info (game, viewcount, etc).
 - Try rt on other platforms.
 - Use a shared public .env for some settings in both frontend and backend.
-- Add GitHub Actions to build (with `--no-bundle` for now) and provide artifacts for some platforms.
-- Move config, data and logs to a single location.
 - Somehow make proxy work with `invoke`/another method that doesn't require a crate like axum (to avoid having a web server running).
 - Service worker to cache emotes? Not sure if Tauri supports it (doesn't clear them on launch) or if theres a Tauri equivalent.
