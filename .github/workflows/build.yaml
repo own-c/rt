@@ -8,28 +8,19 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Ubuntu dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libasound2-dev libappindicator3-dev librsvg2-dev patchelf nsis lld llvm
-
-      - name: Cache npm
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.npm
-            ~\AppData\Roaming\npm-cache
-          key: npm-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            npm-
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libasound2-dev libappindicator3-dev librsvg2-dev patchelf nsis lld llvm ninja-build
 
       - name: Setup node
         uses: actions/setup-node@v4
         with:
+          cache: "npm"
           node-version: lts/*
 
       - name: Install npm dependencies
@@ -44,9 +35,11 @@ jobs:
           targets: x86_64-pc-windows-msvc
 
       - name: Install cargo-xwin
-        run: cargo install cargo-xwin
+        run: cargo install --locked cargo-xwin
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
 
       - name: Run clippy
         working-directory: src-tauri
@@ -60,4 +53,4 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          path: src-tauri/target/release/bundle/
+          path: src-tauri/target/**/bundle/
