@@ -26,7 +26,7 @@ async fn get_user(username: String) -> Result<User, String> {
     match user::get_user(username).await {
         Ok(stream) => Ok(stream),
         Err(err) => {
-            error!("get_user_stream failed: {err}");
+            error!("get_user failed: {err}");
             Err(err.to_string())
         }
     }
