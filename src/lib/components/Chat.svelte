@@ -2,8 +2,10 @@
 	import { onMount } from 'svelte';
 
 	import { openUrl } from '@tauri-apps/plugin-opener';
+	import { Channel, invoke } from '@tauri-apps/api/core';
 
-	import { closeExistingChat, joinChat, type ChatMessage } from '$lib/logic/Chat.svelte';
+	import type { ChatMessage } from '$lib/Types';
+	import type { ChatEvent } from '$lib/Events';
 
 	let { username, isLive } = $props();
 
@@ -62,33 +64,38 @@
 		pendingMessages = [];
 		updateScheduled = false;
 
-		joinChat(username, function (message: ChatMessage) {
-			if (!autoScroll) {
-				tempMessages = [...tempMessages, message];
-			} else {
-				pendingMessages.push(message);
+		const onEvent = new Channel<ChatEvent>();
 
-				if (!updateScheduled) {
-					updateScheduled = true;
+		let id = 0;
 
-					// Is this really working
-					requestAnimationFrame(() => {
-						let combined = [...messages, ...pendingMessages];
-						if (combined.length > 300) {
-							combined = combined.slice(combined.length - 300);
-						}
+		onEvent.onmessage = ({ event, data }) => {
+			if (event === 'message' && data) {
+				data.id = id++;
 
-						messages = combined;
-						pendingMessages = [];
-						updateScheduled = false;
-					});
+				if (!autoScroll) {
+					tempMessages = [...tempMessages, data];
+				} else {
+					pendingMessages.push(data);
+
+					if (!updateScheduled) {
+						updateScheduled = true;
+
+						requestAnimationFrame(() => {
+							let combined = [...messages, ...pendingMessages];
+							if (combined.length > 300) {
+								combined = combined.slice(combined.length - 300);
+							}
+
+							messages = combined;
+							pendingMessages = [];
+							updateScheduled = false;
+						});
+					}
 				}
 			}
-		});
-
-		return () => {
-			closeExistingChat();
 		};
+
+		(async () => await invoke('join_chat', { username, onEvent }))();
 	});
 </script>
 
@@ -98,7 +105,7 @@
 		onscroll={handleScroll}
 		class="bg-neutral-900 overflow-y-auto border-l-2 border-white/20 chat-container overflow-x-hidden h-full h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)]"
 	>
-		{#each messages as message, index (index)}
+		{#each messages as message (message.id)}
 			<div class="text-pretty hover:bg-neutral-600 w-full px-2">
 				<span class="font-bold" style="color: {message.c}"
 					>{message.n}<span class="text-white">:</span></span
@@ -109,6 +116,7 @@
 						<span class="text-white">{fragment.c}</span>
 					{:else if fragment.t === 1 && fragment.e}
 						<img
+							loading="lazy"
 							class="mx-2 inline-block align-middle"
 							src={fragment.e.u}
 							alt={fragment.e.n}

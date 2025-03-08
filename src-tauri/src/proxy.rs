@@ -78,7 +78,7 @@ pub async fn proxy_stream(Query(query): Query<ProxyStreamQuery>) -> impl IntoRes
 
             if ad_detected {
                 if !USING_BACKUP.load(Ordering::SeqCst) {
-                    info!("Found AD in variant playlist. Switching to backup stream.");
+                    info!("Found ad in variant playlist. Switching to backup stream.");
                     USING_BACKUP.store(true, Ordering::SeqCst);
                 }
 
@@ -90,7 +90,7 @@ pub async fn proxy_stream(Query(query): Query<ProxyStreamQuery>) -> impl IntoRes
                     }
                 }
             } else if USING_BACKUP.load(Ordering::SeqCst) {
-                info!("No AD detected. Switching back to main stream.");
+                info!("No ad detected. Switching back to main stream.");
                 USING_BACKUP.store(false, Ordering::SeqCst);
 
                 match fetch_main_stream(&username).await {

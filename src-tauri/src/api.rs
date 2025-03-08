@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use anyhow::{anyhow, Context, Result};
 use axum::{routing::get, Router};
 use lazy_static::lazy_static;
@@ -9,10 +7,7 @@ use tauri_plugin_http::reqwest::{
     header::{HeaderMap, HeaderValue},
     Client as HttpClient,
 };
-use tokio::{
-    net::TcpListener,
-    sync::{broadcast, mpsc},
-};
+use tokio::net::TcpListener;
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::{chat, proxy};
@@ -35,13 +30,6 @@ lazy_static! {
         .unwrap();
 }
 
-pub struct AppState {
-    /// For sending messages to the websocket.
-    pub ws_sender: mpsc::Sender<String>,
-    /// For sending received websocket messages to SSE subscribers.
-    pub ws_broadcast: broadcast::Sender<String>,
-}
-
 pub async fn start_api_server() -> Result<()> {
     rustls::crypto::ring::default_provider()
         .install_default()
@@ -52,17 +40,12 @@ pub async fn start_api_server() -> Result<()> {
     info!("Binding API server on {}", LOCAL_API_ADDR);
     let listener = TcpListener::bind(LOCAL_API_ADDR).await?;
 
-    let (ws_sender, ws_broadcast) = chat::init_irc_connection().await?;
-
-    let state = Arc::new(AppState {
-        ws_sender,
-        ws_broadcast,
-    });
+    if let Err(err) = chat::init_irc_connection().await {
+        return Err(anyhow!("Failed to initialize WebSocket connection: {err}"));
+    }
 
     let app = Router::new()
         .route("/proxy", get(proxy::proxy_stream))
-        .route("/chat/{username}", get(chat::join_chat))
-        .with_state(state)
         .layer(cors_layer);
 
     axum::serve(listener, app).await?;

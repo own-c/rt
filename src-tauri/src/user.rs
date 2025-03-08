@@ -17,9 +17,10 @@ const USELIVE_QUERY_HASH: &str = "639d5f11bfb8bf3053b424d9ef650d04c4ebb7d94711d6
 const COMSCORESTREAMING_QUERY_HASH: &str =
     "e1edae8122517d013405f237ffcc124515dc6ded82480a88daef69c83b53ac01";
 
-pub async fn get_live_now(usernames: Vec<String>) -> Result<Vec<String>> {
+#[tauri::command]
+pub async fn get_live_now(usernames: Vec<String>) -> Result<Vec<String>, String> {
     if usernames.is_empty() {
-        return Err(anyhow!("No usernames provided"));
+        return Err(String::from("No usernames provided"));
     }
 
     let mut body = json!([]);
@@ -45,12 +46,12 @@ pub async fn get_live_now(usernames: Vec<String>) -> Result<Vec<String>> {
     let uselive_query_data = match api::send_gql(body).await {
         Ok(data) => data,
         Err(err) => {
-            return Err(anyhow!("Failed to fetch UseLive: {err}"));
+            return Err(format!("Failed to fetch UseLive: {err}"));
         }
     };
 
     let Some(arr) = uselive_query_data.as_array() else {
-        return Err(anyhow!("UseLive data was not an array"));
+        return Err(String::from("UseLive data was not an array"));
     };
 
     let mut live = Vec::new();
@@ -101,9 +102,10 @@ pub struct User {
     url: String,
 }
 
-pub async fn get_user(username: String) -> Result<User> {
+#[tauri::command]
+pub async fn get_user(username: &str) -> Result<User, String> {
     if username.is_empty() {
-        return Err(anyhow!("No username provided"));
+        return Err(String::from("No username provided"));
     }
 
     let query = json!({
@@ -127,20 +129,26 @@ pub async fn get_user(username: String) -> Result<User> {
     let response = match api::send_gql(query).await {
         Ok(data) => data,
         Err(err) => {
-            return Err(anyhow!("Failed to fetch ComscoreStreamingQuery: {err}"));
+            return Err(format!("Failed to fetch ComscoreStreamingQuery: {err}"));
         }
     };
 
     let Some(user) = response.pointer("/data/user") else {
-        return Err(anyhow!("Missing user in streaming data"));
+        return Err(String::from("Missing user in streaming data"));
     };
 
-    let is_streaming = !utils::extract_json(user, "stream")?.is_null();
+    let is_streaming = match utils::extract_json(user, "stream") {
+        Ok(stream) => !stream.is_null(),
+        Err(err) => {
+            error!("Failed to extract stream from user: {err}");
+            false
+        }
+    };
 
     // Checking here just to avoid a request for playback tokens if the user isn't streaming
     if !is_streaming {
         let user = User {
-            username: username.clone(),
+            username: username.to_string(),
             avatar: String::default(),
             live: false,
             url: String::default(),
@@ -151,14 +159,19 @@ pub async fn get_user(username: String) -> Result<User> {
         return Ok(user);
     }
 
-    let stream = fetch_stream(&username, false).await?;
+    let stream = match fetch_stream(username, false).await {
+        Ok(stream) => stream,
+        Err(err) => {
+            return Err(format!("Failed to fetch stream: {err}"));
+        }
+    };
 
-    if let Err(err) = emote::get_user_emotes(&username, &stream.user_id).await {
+    if let Err(err) = emote::get_user_emotes(username, &stream.user_id).await {
         error!("Failed to get emotes for '{username}': {err}");
     }
 
     let user = User {
-        username: username.clone(),
+        username: username.to_string(),
         avatar: stream.avatar,
         live: true,
         url: stream.url,
