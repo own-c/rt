@@ -9,7 +9,7 @@
 	import Chat from '$lib/components/Chat.svelte';
 
 	import { initUsers } from '$lib/logic/Users.svelte';
-	import { watching, fetchAndSetStream } from '$lib/logic/Stream.svelte';
+	import { watching, fetchAndSetUser } from '$lib/logic/Stream.svelte';
 
 	let showChat = $state(false);
 	function toggleChat() {
@@ -41,7 +41,7 @@
 					username = parts[0];
 				}
 
-				await fetchAndSetStream(username);
+				await fetchAndSetUser(username);
 			}
 		});
 	});

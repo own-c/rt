@@ -1,11 +1,10 @@
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 
 use anyhow::{anyhow, Result};
-use lazy_static::lazy_static;
 use log::{error, info};
 use serde::Serialize;
 use serde_json::json;
-use tauri::{async_runtime::Mutex, Url};
+use tauri::Url;
 
 use crate::{
     api::{self, LOCAL_API},
@@ -17,18 +16,6 @@ const USHER_API: &str = "https://usher.ttvnw.net/api/channel/hls";
 const USELIVE_QUERY_HASH: &str = "639d5f11bfb8bf3053b424d9ef650d04c4ebb7d94711d644afb08fe9a0fad5d9";
 const COMSCORESTREAMING_QUERY_HASH: &str =
     "e1edae8122517d013405f237ffcc124515dc6ded82480a88daef69c83b53ac01";
-
-#[derive(Serialize, Debug)]
-pub struct Stream {
-    username: String,
-    live: bool,
-    avatar: String,
-    url: String,
-}
-
-lazy_static! {
-    pub static ref USER_TO_ID_MAP: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
-}
 
 pub async fn get_live_now(usernames: Vec<String>) -> Result<Vec<String>> {
     if usernames.is_empty() {
@@ -106,12 +93,20 @@ pub async fn get_live_now(usernames: Vec<String>) -> Result<Vec<String>> {
     Ok(live)
 }
 
-pub async fn get_user_stream(username: String) -> Result<Stream> {
+#[derive(Serialize, Debug)]
+pub struct User {
+    username: String,
+    live: bool,
+    avatar: String,
+    url: String,
+}
+
+pub async fn get_user(username: String) -> Result<User> {
     if username.is_empty() {
         return Err(anyhow!("No username provided"));
     }
 
-    let mut query = json!([{
+    let query = json!({
         "operationName": "ComscoreStreamingQuery",
         "variables": {
             "channel": username,
@@ -127,7 +122,66 @@ pub async fn get_user_stream(username: String) -> Result<Stream> {
                 "sha256Hash": COMSCORESTREAMING_QUERY_HASH
             }
         }
-    }]);
+    });
+
+    let response = match api::send_gql(query).await {
+        Ok(data) => data,
+        Err(err) => {
+            return Err(anyhow!("Failed to fetch ComscoreStreamingQuery: {err}"));
+        }
+    };
+
+    let Some(user) = response.pointer("/data/user") else {
+        return Err(anyhow!("Missing user in streaming data"));
+    };
+
+    let is_streaming = !utils::extract_json(user, "stream")?.is_null();
+
+    // Checking here just to avoid a request for playback tokens if the user isn't streaming
+    if !is_streaming {
+        let user = User {
+            username: username.clone(),
+            avatar: String::default(),
+            live: false,
+            url: String::default(),
+        };
+
+        info!("Stream: {{ username: \"{username}\", live: \"false\" }}");
+
+        return Ok(user);
+    }
+
+    let stream = fetch_stream(&username, false).await?;
+
+    if let Err(err) = emote::get_user_emotes(&username, &stream.user_id).await {
+        error!("Failed to get emotes for '{username}': {err}");
+    }
+
+    let user = User {
+        username: username.clone(),
+        avatar: stream.avatar,
+        live: true,
+        url: stream.url,
+    };
+
+    info!("Stream: {{ username: \"{username}\", live: \"true\" }}");
+
+    Ok(user)
+}
+
+pub struct PlaybackResponse {
+    user_id: String,
+    avatar: String,
+    pub url: String,
+}
+
+pub async fn fetch_stream(username: &str, backup: bool) -> Result<PlaybackResponse> {
+    if username.is_empty() {
+        return Err(anyhow!("No username provided"));
+    }
+
+    let platform = if backup { "ios" } else { "web" };
+    let player_type = if backup { "autoplay" } else { "site" };
 
     let playback_query = format!(
         r#"{{
@@ -138,9 +192,9 @@ pub async fn get_user_stream(username: String) -> Result<Stream> {
             streamPlaybackAccessToken(
                 channelName: "{username}",
                 params: {{
-                    platform: "web",
+                    platform: "{platform}",
                     playerBackend: "mediaplayer",
-                    playerType: "site"
+                    playerType: "{player_type}",
                 }}
             )
             {{
@@ -150,10 +204,7 @@ pub async fn get_user_stream(username: String) -> Result<Stream> {
         }}"#
     );
 
-    query
-        .as_array_mut()
-        .unwrap()
-        .push(json!({"query": playback_query.replace(' ',"")}));
+    let query = json!({"query": playback_query.replace(' ',"")});
 
     let response = match api::send_gql(query).await {
         Ok(data) => data,
@@ -162,39 +213,19 @@ pub async fn get_user_stream(username: String) -> Result<Stream> {
         }
     };
 
-    let response = response.as_array();
-    if response.is_none() || response.unwrap().len() != 2 {
-        return Err(anyhow!("Missing data in query: {response:?}"));
-    }
-
-    let response = response.unwrap();
-
-    let streaming = response.first().unwrap();
-    let Some(user) = streaming.pointer("/data/user") else {
-        return Err(anyhow!("Missing user in streaming data"));
-    };
-
-    let stream = utils::extract_json(user, "stream")?;
-    let playback = response.last().unwrap();
-
-    let access_token = utils::extract_json(playback, "data")?;
+    let access_token = utils::extract_json(&response, "data")?;
     let access_token_user = utils::extract_json(&access_token, "user")?;
 
-    let id = utils::string_from_value(access_token_user.get("id"));
-    match emote::get_user_emotes(&username, &id).await {
-        Ok(()) => {}
-        Err(err) => {
-            error!("Failed to get emotes: {err}");
-        }
-    }
+    let user_id = utils::string_from_value(access_token_user.get("id"));
 
     let avatar = utils::string_from_value(access_token_user.get("profileImageURL"));
-    let playback_tokens = utils::extract_json(&access_token, "streamPlaybackAccessToken")?;
+    let tokens = utils::extract_json(&access_token, "streamPlaybackAccessToken")?;
 
-    let playlist_url = match playlist_url(
-        &username,
-        &utils::string_from_value(playback_tokens.get("signature")),
-        &utils::string_from_value(playback_tokens.get("value")),
+    let url = match playlist_url(
+        username,
+        backup,
+        &utils::string_from_value(tokens.get("signature")),
+        &utils::string_from_value(tokens.get("value")),
     ) {
         Ok(url) => url.to_string(),
         Err(err) => {
@@ -202,38 +233,30 @@ pub async fn get_user_stream(username: String) -> Result<Stream> {
         }
     };
 
-    let stream = Stream {
-        username: username.clone(),
+    let stream = PlaybackResponse {
+        user_id,
         avatar,
-        live: !stream.is_null(),
-        url: playlist_url,
+        url,
     };
-
-    info!(
-        "Stream: {{ username: \"{}\", live: \"{}\" }}",
-        stream.username, stream.live
-    );
 
     Ok(stream)
 }
 
-fn playlist_url(channel_name: &str, signature: &str, token: &str) -> Result<Url> {
+fn playlist_url(username: &str, backup: bool, signature: &str, token: &str) -> Result<String> {
     let mut url = Url::from_str(&format!("{LOCAL_API}/proxy"))?;
-    let mut to_proxy = Url::from_str(&format!("{USHER_API}/{channel_name}.m3u8"))?;
+    let mut to_proxy = format!("{USHER_API}/{username}.m3u8");
 
     let random_number = utils::random_number(1_000_000, 10_000_000);
 
-    to_proxy
-        .query_pairs_mut()
-        .append_pair("allow_source", "true")
-        .append_pair("p", &random_number.to_string())
-        .append_pair("platform", "web")
-        .append_pair("player", "twitchweb")
-        .append_pair("supported_codecs", "av1,h265,h264")
-        .append_pair("sig", signature)
-        .append_pair("token", token);
+    if backup {
+        to_proxy.push_str(&format!("?platform=ios&supported_codecs=h264&player=twitchweb&fast_bread=true&p={random_number}&sig={signature}&token={token}"));
+    } else {
+        to_proxy.push_str(&format!("?platform=web&supported_codecs=av1,h265,h264&allow_source=true&player=twitchweb&fast_bread=true&p={random_number}&sig={signature}&token={token}"));
+    }
 
-    url.query_pairs_mut().append_pair("url", to_proxy.as_ref());
+    url.query_pairs_mut()
+        .append_pair("username", username)
+        .append_pair("url", to_proxy.as_str());
 
-    Ok(url)
+    Ok(url.to_string())
 }

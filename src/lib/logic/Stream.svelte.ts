@@ -8,7 +8,7 @@ type Watching = {
 	live: boolean;
 };
 
-type StreamResponse = {
+type UserResponse = {
 	live: boolean;
 	avatar: string;
 	url: string;
@@ -22,8 +22,8 @@ export let watching: Watching = $state({
 	live: false
 });
 
-export async function fetchAndSetStream(username: string) {
-	const stream: StreamResponse = await invoke('get_user_stream', { username: username });
+export async function fetchAndSetUser(username: string) {
+	const stream: UserResponse = await invoke('get_user', { username: username });
 
 	if (stream && stream.live) {
 		const newUser = {
@@ -46,7 +46,7 @@ export async function fetchAndSetStream(username: string) {
 	});
 }
 
-function setWatching(stream: StreamResponse) {
+function setWatching(stream: UserResponse) {
 	watching.username = stream.username;
 	watching.url = stream.url;
 	watching.live = stream.live;

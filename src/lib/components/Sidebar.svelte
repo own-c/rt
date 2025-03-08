@@ -2,7 +2,7 @@
 	import { onMount, tick } from 'svelte';
 
 	import { refreshUsers, removeUser, usersMap } from '$lib/logic/Users.svelte';
-	import { fetchAndSetStream, watching } from '$lib/logic/Stream.svelte';
+	import { fetchAndSetUser, watching } from '$lib/logic/Stream.svelte';
 
 	let loading = $state(false);
 
@@ -52,14 +52,14 @@
 
 	async function changeStream(username: string) {
 		loading = true;
-		await fetchAndSetStream(username);
+		await fetchAndSetUser(username);
 		loading = false;
 	}
 
 	async function addNewUser(username: string) {
 		showInput = false;
 		loading = true;
-		await fetchAndSetStream(username);
+		await fetchAndSetUser(username);
 		loading = false;
 	}
 

@@ -1,7 +1,7 @@
 use log::error;
 use tauri::async_runtime;
 use tauri_plugin_deep_link::DeepLinkExt;
-use user::Stream;
+use user::User;
 
 mod api;
 mod chat;
@@ -9,8 +9,6 @@ mod emote;
 mod proxy;
 mod user;
 mod utils;
-
-// User/Stream
 
 #[tauri::command]
 async fn get_live_now(usernames: Vec<String>) -> Result<Vec<String>, String> {
@@ -24,8 +22,8 @@ async fn get_live_now(usernames: Vec<String>) -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-async fn get_user_stream(username: String) -> Result<Stream, String> {
-    match user::get_user_stream(username).await {
+async fn get_user(username: String) -> Result<User, String> {
+    match user::get_user(username).await {
         Ok(stream) => Ok(stream),
         Err(err) => {
             error!("get_user_stream failed: {err}");
@@ -71,7 +69,7 @@ pub fn run() {
         });
 
     builder
-        .invoke_handler(tauri::generate_handler![get_user_stream, get_live_now,])
+        .invoke_handler(tauri::generate_handler![get_user, get_live_now,])
         .run(tauri::generate_context!())
         .expect("while running tauri application");
 }

@@ -56,3 +56,6 @@ Logs are stored in the following locations:
 - Use a shared public .env for some settings in both frontend and backend.
 - Somehow make proxy work with `invoke`/another method that doesn't require a crate like axum (to avoid having a web server running).
 - Service worker to cache emotes? Not sure if Tauri supports it (doesn't clear them on launch) or if theres a Tauri equivalent.
+- Readd the buffer to the video, currently using `ll-live` for the player which disables it.
+- Maybe notify user when the stream has been switched to a backup one.
+- Try to reduce as much as possible the amount of requests made to Twitch.
