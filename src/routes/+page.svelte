@@ -3,6 +3,9 @@
 
 	import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
 
+	import 'simplebar';
+	import 'simplebar/dist/simplebar.css';
+
 	import Player from '$lib/components/Player.svelte';
 	import Titlebar from '$lib/components/Titlebar.svelte';
 	import Sidebar from '$lib/components/Sidebar.svelte';
@@ -58,21 +61,21 @@
 		<Sidebar />
 
 		<main class="flex w-full h-full">
-			<div class="flex w-full h-full">
-				{#if watching.username}
-					<Player username={watching.username} isLive={watching.live} url={watching.url} />
-				{:else}
-					<div class="flex flex-col items-center justify-center h-full w-full">
-						<div class="text-center">
-							<h1 class="text-4xl font-bold">No stream selected</h1>
-							<p class="text-lg">Select a stream from the sidebar</p>
-						</div>
-					</div>
-				{/if}
-			</div>
-
 			{#key watching.username}
-				<div class="min-w-1/5 max-w-1/5 h-full" hidden={!showChat}>
+				<div class="flex w-full h-full">
+					{#if watching.username}
+						<Player isLive={watching.live} url={watching.url} />
+					{:else}
+						<div class="flex flex-col items-center justify-center h-full w-full">
+							<div class="text-center">
+								<h1 class="text-4xl font-bold">No stream selected</h1>
+								<p class="text-lg">Select a stream from the sidebar</p>
+							</div>
+						</div>
+					{/if}
+				</div>
+
+				<div class="h-full min-w-1/5 max-w-1/5" hidden={!showChat}>
 					<Chat username={watching.username} isLive={watching.live} />
 				</div>
 			{/key}
@@ -86,5 +89,13 @@
 		-webkit-user-select: none;
 		-ms-user-select: none;
 		outline: none;
+	}
+
+	:global(.simplebar-scrollbar) {
+		transition: opacity 0.2s ease-in-out;
+	}
+
+	:global(.simplebar-scrollbar::before) {
+		background-color: #ffffff;
 	}
 </style>

@@ -8,7 +8,7 @@
 
 	let rightClickedUser = $state('');
 
-	let inputEl: HTMLInputElement = $state(document.createElement('input'));
+	let inputEl = $state() as HTMLInputElement;
 	let username = $state('');
 	let showInput = $state(false);
 
@@ -27,7 +27,7 @@
 		}
 	}
 
-	let contextMenuEl: HTMLDivElement = $state(document.createElement('div'));
+	let contextMenuEl = $state() as HTMLDivElement;
 	let rightClickPos = $state({ x: 0, y: 0 });
 	let showContextMenu = $state(false);
 
@@ -75,7 +75,7 @@
 </script>
 
 <aside class="flex flex-col items-center h-full min-w-12 bg-neutral-800 gap-2 user-select-none">
-	<div class="flex flex-col items-center w-full mt-2">
+	<div class="flex flex-col items-center w-full">
 		<button
 			aria-label="Add user"
 			title="Add user"
@@ -110,7 +110,7 @@
 
 	<hr class="border-gray-700 w-full" />
 
-	<div class="w-full overflow-y-auto" style="ms-overflow-style: none; scrollbar-width: none;">
+	<div data-simplebar class="w-full h-full overflow-y-auto pb-8">
 		{#each Object.values(usersMap).sort((a, b) => {
 			const aLive = a.live ? 1 : 0;
 			const bLive = b.live ? 1 : 0;

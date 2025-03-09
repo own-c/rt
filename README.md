@@ -59,3 +59,4 @@ Logs are stored in the following locations:
 - Add back ability to rewind the video, currently using `ll-live` for the player which disables it.
 - Use Tauri's channels to notify more events, like when the stream has been switched to a backup one and more.
 - Try to reduce as much as possible the amount of requests made to Twitch.
+- Fix `join_chat` errors when hard refreshing the page while in a chat.

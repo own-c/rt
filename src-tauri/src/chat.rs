@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use crate::{
     emote::{Emote, EMOTES_CACHE},
-    utils,
+    utils, AppState,
 };
 use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
@@ -13,6 +13,7 @@ use serde::Serialize;
 use tauri::{
     async_runtime::{self, Mutex},
     ipc::Channel,
+    State,
 };
 use tokio::{
     sync::{broadcast, mpsc},
@@ -25,8 +26,6 @@ const PING: &str = "PING";
 const PONG: &str = "PONG";
 
 lazy_static! {
-    static ref CURRENT_CHAT_NAME: Mutex<Option<String>> = Mutex::new(None);
-
     static ref IRC_CHAT_REG: Regex = Regex::new(
          r"(?m)^@.*?color=(?P<color>[^;]*).*?display-name=(?P<display_name>[^;]*).*?first-msg=(?P<first_msg>[^;]*).*?PRIVMSG\s+\S+\s+:(?P<message>.*)$"
     ).unwrap();
@@ -34,18 +33,9 @@ lazy_static! {
     static ref URL_REG: Regex = Regex::new(
         r"(?m)(https?:\/\/)?(www\.)?([a-zA-Z0-9-]{1,256})\.[a-zA-Z0-9]{2,}(\/[^\s]*)?"
     ).unwrap();
-
-     static ref WEBSOCKET_CHANNELS: Mutex<Option<WebSocket>> = Mutex::new(None);
 }
 
-pub struct WebSocket {
-    /// For sending messages to the websocket.
-    pub sender: Option<mpsc::Sender<String>>,
-    /// For sending received websocket messages to the Tauri channel.
-    pub broadcast: Option<broadcast::Sender<String>>,
-}
-
-pub async fn init_irc_connection() -> Result<()> {
+pub async fn init_irc_connection() -> Result<(mpsc::Sender<String>, broadcast::Sender<String>)> {
     let (mut ws_stream, _) = tokio_tungstenite::connect_async(WS_CHAT_URL).await?;
 
     ws_stream.send("CAP REQ :twitch.tv/tags".into()).await?;
@@ -107,9 +97,12 @@ pub async fn init_irc_connection() -> Result<()> {
                     // Process messages coming from sender.
                     sender_msg = ws_sender_rx.recv() => {
                         if let Some(msg) = sender_msg {
+                            if let Err(err) = broadcast.send(msg.clone()) {
+                                error!("Failed to send back message: {err}");
+                            }
+
                             if let Err(err) = ws_sink.send(msg.into()).await {
                                 error!("Failed to send message: {err}");
-                                break;
                             }
                         } else {
                             break;
@@ -120,13 +113,7 @@ pub async fn init_irc_connection() -> Result<()> {
         }
     });
 
-    let mut lock = WEBSOCKET_CHANNELS.lock().await;
-    *lock = Some(WebSocket {
-        sender: Some(ws_sender_tx),
-        broadcast: Some(ws_broadcast_tx),
-    });
-
-    Ok(())
+    Ok((ws_sender_tx, ws_broadcast_tx))
 }
 
 #[derive(Clone, Serialize)]
@@ -159,10 +146,35 @@ struct Fragment {
 }
 
 #[tauri::command]
-pub async fn join_chat(username: String, on_event: Channel<ChatEvent>) {
+pub async fn leave_chat(state: State<'_, Mutex<AppState>>, username: &str) -> Result<(), String> {
+    let mut state = state.lock().await;
+
+    let sender = state.sender.clone();
+
+    if state.current_stream.is_some() {
+        let old = state.current_stream.clone().unwrap();
+        if old != username {
+            info!("Leaving '{old}' chat");
+            if let Err(err) = sender.send(format!("PART #{old}")).await {
+                error!("Send: {err}");
+            }
+
+            state.current_stream = None;
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn join_chat(
+    state: State<'_, Mutex<AppState>>,
+    username: &str,
+    on_event: Channel<ChatEvent>,
+) -> Result<(), String> {
     let user_emotes = {
         let user_emotes_lock = EMOTES_CACHE.lock().await;
-        if let Some(emotes) = user_emotes_lock.get(&username) {
+        if let Some(emotes) = user_emotes_lock.get(username) {
             Arc::new(emotes.clone())
         } else {
             error!("Emotes not found for '{username}'");
@@ -170,38 +182,28 @@ pub async fn join_chat(username: String, on_event: Channel<ChatEvent>) {
         }
     };
 
-    let lock = WEBSOCKET_CHANNELS.lock().await;
-    let ws = lock.as_ref().unwrap();
-    let sender = ws.sender.clone().unwrap();
-    let broadcast = ws.broadcast.clone().unwrap();
-    drop(lock);
+    let mut state = state.lock().await;
 
-    let mut current_stream = CURRENT_CHAT_NAME.lock().await;
-
-    if current_stream.is_some() {
-        let old = current_stream.clone().unwrap();
-        if old != username {
-            info!("Leaving '{old}' chat");
-            if let Err(err) = sender.send(format!("PART #{old}")).await {
-                error!("Send: {err}");
-            }
-
-            *current_stream = None;
-        }
-    }
+    let sender = state.sender.clone();
 
     info!("Joining '{username}' chat");
     if sender.send(format!("JOIN #{username}")).await.is_ok() {
-        *current_stream = Some(username.to_string());
+        state.current_stream = Some(username.to_string());
     } else {
         error!("Failed to join chat: {username}");
     }
 
-    drop(current_stream);
+    let mut rx = state.receiver.subscribe();
 
-    let mut rx = broadcast.subscribe();
+    drop(state);
 
     while let Ok(irc) = rx.recv().await {
+        // Hack, currently there's no way to close this loop after joining another stream/chat.
+        // When a second chat is joined, a PART will always be sent and the loop before it will always receive it.
+        if irc.starts_with("PART") {
+            break;
+        }
+
         // From here its possible to parse all events coming from the chat, but for now we're only interested in messages.
         let caps = IRC_CHAT_REG.captures(&irc);
         if caps.is_none() {
@@ -239,6 +241,8 @@ pub async fn join_chat(username: String, on_event: Channel<ChatEvent>) {
             error!("Failed to send chat event: {err}");
         }
     }
+
+    Ok(())
 }
 
 fn parse_chat_fragments(

@@ -4,6 +4,8 @@
 	import { openUrl } from '@tauri-apps/plugin-opener';
 	import { Channel, invoke } from '@tauri-apps/api/core';
 
+	import SimpleBar from 'simplebar';
+
 	import type { ChatMessage } from '$lib/Types';
 	import type { ChatEvent } from '$lib/Events';
 
@@ -14,32 +16,33 @@
 	let pendingMessages: ChatMessage[] = [];
 	let updateScheduled = false;
 
-	let chatContainer: HTMLDivElement = $state(document.createElement('div'));
+	let chatContainer = $state() as HTMLDivElement;
+	let simpleBarInstance = $state() as HTMLElement;
 	let autoScroll = $state(true);
 
 	function handleScroll() {
-		if (chatContainer) {
-			const { scrollTop, scrollHeight, clientHeight } = chatContainer;
-			if (scrollTop + clientHeight < scrollHeight - 10) {
-				autoScroll = false;
-				return;
+		const { scrollTop, scrollHeight, clientHeight } = simpleBarInstance;
+
+		if (scrollTop + clientHeight < scrollHeight - 10) {
+			autoScroll = false;
+			return;
+		}
+
+		autoScroll = true;
+		if (tempMessages.length > 0) {
+			let combined = [...messages, ...tempMessages];
+			if (combined.length > 300) {
+				combined = combined.slice(combined.length - 300);
 			}
 
-			autoScroll = true;
-			if (tempMessages.length > 0) {
-				let combined = [...messages, ...tempMessages];
-				if (combined.length > 300) {
-					combined = combined.slice(combined.length - 300);
-				}
-
-				messages = combined;
-				tempMessages = [];
-			}
+			messages = combined;
+			tempMessages = [];
 		}
 	}
 
 	async function openUrlInBrowser(event: MouseEvent) {
 		const target = event.target as HTMLElement;
+
 		if (target.id === 'url') {
 			let url = target.innerText;
 			if (!url.startsWith('http') && !url.startsWith('https')) {
@@ -51,13 +54,16 @@
 	}
 
 	$effect(() => {
-		if (autoScroll && chatContainer && messages.length > 0) {
-			chatContainer.scrollTop = chatContainer.scrollHeight;
+		if (autoScroll && simpleBarInstance && messages.length > 0) {
+			simpleBarInstance.scrollTop = simpleBarInstance.scrollHeight;
 		}
 	});
 
 	onMount(() => {
 		if (!username || !isLive) return;
+
+		simpleBarInstance = new SimpleBar(chatContainer).getScrollElement()!;
+		simpleBarInstance.addEventListener('scroll', handleScroll);
 
 		messages = [];
 		tempMessages = [];
@@ -96,24 +102,28 @@
 		};
 
 		(async () => await invoke('join_chat', { username, onEvent }))();
+
+		return () => {
+			(async () => await invoke('leave_chat', { username }))();
+		};
 	});
 </script>
 
 <div class="relative h-[calc(100vh-2rem)]" style="user-select: text;">
 	<div
+		data-simplebar
 		bind:this={chatContainer}
-		onscroll={handleScroll}
-		class="bg-neutral-900 overflow-y-auto border-l-2 border-white/20 chat-container overflow-x-hidden h-full h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)]"
+		class="bg-neutral-900 overflow-y-auto border-l-2 border-white/20 overflow-x-hidden h-full h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] min-w-full"
 	>
 		{#each messages as message (message.id)}
-			<div class="text-pretty hover:bg-neutral-600 w-full px-2">
+			<div class="text-pretty hover:bg-neutral-600 w-full mx-1">
 				<span class="font-bold" style="color: {message.c}"
 					>{message.n}<span class="text-white">:</span></span
 				>
 
 				{#each message.m as fragment, index (index)}
 					{#if fragment.t === 0}
-						<span class="text-white">{fragment.c}</span>
+						<span class="text-white break-words">{fragment.c}</span>
 					{:else if fragment.t === 1 && fragment.e}
 						<img
 							loading="lazy"
@@ -143,7 +153,7 @@
 		<button
 			class="absolute bottom-0 left-1/2 transform -translate-x-1/2 text-white text-center p-1 bg-slate-800/80 hover:bg-slate-600/90 rounded-md shadow-lg z-50 cursor-pointer"
 			onclick={() => {
-				chatContainer.scrollTop = chatContainer.scrollHeight;
+				simpleBarInstance.scrollTop = simpleBarInstance.scrollHeight;
 			}}
 		>
 			<span class="shadow-lg">
@@ -156,18 +166,3 @@
 		</button>
 	{/if}
 </div>
-
-<style>
-	.chat-container::-webkit-scrollbar {
-		width: 10px;
-	}
-
-	.chat-container::-webkit-scrollbar-track {
-		background: transparent;
-	}
-
-	.chat-container::-webkit-scrollbar-thumb {
-		background-color: rgba(255, 255, 255, 0.4);
-		border-radius: 4px;
-	}
-</style>

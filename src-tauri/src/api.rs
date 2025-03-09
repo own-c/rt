@@ -10,7 +10,7 @@ use tauri_plugin_http::reqwest::{
 use tokio::net::TcpListener;
 use tower_http::cors::{Any, CorsLayer};
 
-use crate::{chat, proxy};
+use crate::proxy;
 
 const GRAPHQL_API: &str = "https://gql.twitch.tv/gql";
 
@@ -31,18 +31,10 @@ lazy_static! {
 }
 
 pub async fn start_api_server() -> Result<()> {
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .expect("Failed to install rustls crypto provider");
-
     let cors_layer = CorsLayer::new().allow_origin(Any).allow_methods(Any);
 
     info!("Binding API server on {}", LOCAL_API_ADDR);
     let listener = TcpListener::bind(LOCAL_API_ADDR).await?;
-
-    if let Err(err) = chat::init_irc_connection().await {
-        return Err(anyhow!("Failed to initialize WebSocket connection: {err}"));
-    }
 
     let app = Router::new()
         .route("/proxy", get(proxy::proxy_stream))
