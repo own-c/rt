@@ -51,6 +51,14 @@ jobs:
       - name: Build for Windows
         run: npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc
 
+      - name: Create bundles folder and move artifacts
+        run: |
+          mkdir -p bundles
+          mv src-tauri/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe bundles
+          mv src-tauri/release/bundle/rpm/*.rpm bundles
+          mv src-tauri/release/bundle/deb/*.deb bundles
+
       - uses: actions/upload-artifact@v4
         with:
-          path: src-tauri/target/**/bundle/
+          name: bundles
+          path: bundles

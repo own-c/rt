@@ -119,12 +119,12 @@
 										class="object-cover aspect-ratio h-full"
 									/>
 
-									<div class="flex flex-col py-1 mr-2">
+									<div class="flex flex-col py-1 mr-2 text-sm">
 										<div class="font-bold">
 											{streamInfo.title}
 										</div>
 
-										<div class="text-sm">
+										<div>
 											{streamInfo.started_at} - {streamInfo.view_count} viewers
 										</div>
 
@@ -132,7 +132,7 @@
 
 										<p
 											title={streamInfo.game}
-											class="text-sm italic overflow-hidden text-ellipsis truncate"
+											class="italic overflow-hidden text-ellipsis truncate"
 										>
 											{streamInfo.game}
 										</p>
