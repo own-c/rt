@@ -109,15 +109,22 @@
 	});
 </script>
 
-<div class="relative h-[calc(100vh-2rem)]" style="user-select: text;">
+<div
+	class="relative h-[calc(100vh-2rem)] min-w-full max-w-full border-l-2 border-white/20 text-sm"
+	style="user-select: text;"
+>
 	<div
 		data-simplebar
 		bind:this={chatContainer}
-		class="bg-neutral-900 overflow-y-auto border-l-2 border-white/20 overflow-x-hidden h-full h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] min-w-full"
+		class="h-full w-full bg-neutral-900 overflow-y-auto"
 	>
 		{#each messages as message (message.id)}
-			<div class="text-pretty hover:bg-neutral-600 w-full mx-1">
-				<span class="font-bold" style="color: {message.c}"
+			<div
+				class="text-pretty px-1 py-1 {message.f
+					? 'bg-purple-500/20 hover:bg-purple-400/40'
+					: 'hover:bg-neutral-800'}"
+			>
+				<span class="font-bold break-words" style="color: {message.c}"
 					>{message.n}<span class="text-white">:</span></span
 				>
 
@@ -135,14 +142,16 @@
 							title={fragment.e.n}
 						/>
 					{:else}
-						<button
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<span
 							id="url"
 							onclick={openUrlInBrowser}
+							tabindex="-1"
 							role="link"
 							class="mx-2 break-all text-blue-400 hover:text-blue-600 underline underline-blue-400 cursor-pointer"
 						>
 							{fragment.c}
-						</button>
+						</span>
 					{/if}
 				{/each}
 			</div>

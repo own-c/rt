@@ -55,7 +55,9 @@
 	class="flex flex-col h-screen w-screen overflow-hidden bg-black text-white"
 	onkeydown={handleKeyDown}
 >
-	<Titlebar {toggleChat} />
+	{#key watching.username}
+		<Titlebar {toggleChat} />
+	{/key}
 
 	<div class="flex min-h-full w-full">
 		<Sidebar />

@@ -3,7 +3,7 @@ export type ChatMessage = {
 	// Color
 	c: string;
 	// First message, not used
-	f: string;
+	f: boolean;
 	// Name
 	n: string;
 	// Fragments that make up the message
@@ -24,4 +24,12 @@ type Emote = {
 	u: string;
 	w: number;
 	h: number;
+};
+
+export type StreamInfo = {
+	title: string;
+	started_at: string;
+	game: string;
+	view_count: number;
+	box_art: string;
 };

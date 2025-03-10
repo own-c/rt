@@ -81,8 +81,9 @@ pub fn run() {
 
     builder
         .invoke_handler(tauri::generate_handler![
-            user::get_user,
             user::get_live_now,
+            user::get_user,
+            user::get_stream_info,
             chat::join_chat,
             chat::leave_chat
         ])

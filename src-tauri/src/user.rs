@@ -7,15 +7,20 @@ use serde_json::json;
 use tauri::Url;
 
 use crate::{
-    api::{self, LOCAL_API},
+    api::{self, send_gql, HTTP_CLIENT, LOCAL_API},
     emote, utils,
 };
 
 const USHER_API: &str = "https://usher.ttvnw.net/api/channel/hls";
+const BOXART_CDN: &str = "https://static-cdn.jtvnw.net/ttv-boxart";
 
 const USELIVE_QUERY_HASH: &str = "639d5f11bfb8bf3053b424d9ef650d04c4ebb7d94711d644afb08fe9a0fad5d9";
-const COMSCORESTREAMING_QUERY_HASH: &str =
+const COMSCORE_STREAMING_QUERY_HASH: &str =
     "e1edae8122517d013405f237ffcc124515dc6ded82480a88daef69c83b53ac01";
+const STREAM_METADATA_QUERY_HASH: &str =
+    "b57f9b910f8cd1a4659d894fe7550ccc81ec9052c01e438b290fd66a040b9b93";
+const USE_VIEW_COUNT_QUERY_HASH: &str =
+    "95e6bd7acfbb2f220c17e387805141b77b43b18e5b27b4f702713e9ddbe6b907";
 
 #[tauri::command]
 pub async fn get_live_now(usernames: Vec<String>) -> Result<Vec<String>, String> {
@@ -121,7 +126,7 @@ pub async fn get_user(username: &str) -> Result<User, String> {
         "extensions": {
             "persistedQuery": {
                 "version": 1,
-                "sha256Hash": COMSCORESTREAMING_QUERY_HASH
+                "sha256Hash": COMSCORE_STREAMING_QUERY_HASH
             }
         }
     });
@@ -180,6 +185,106 @@ pub async fn get_user(username: &str) -> Result<User, String> {
     info!("Stream: {{ username: \"{username}\", live: \"true\" }}");
 
     Ok(user)
+}
+
+#[derive(Serialize)]
+pub struct StreamInfo {
+    title: String,
+    started_at: String,
+    game: String,
+    box_art: String,
+    view_count: u64,
+}
+
+#[tauri::command]
+pub async fn get_stream_info(username: &str) -> Result<StreamInfo, String> {
+    let query = json!([{
+      "operationName": "StreamMetadata",
+      "variables": {
+        "channelLogin": username,
+        "includeIsDJ": true
+      },
+      "extensions": {
+        "persistedQuery": {
+          "version": 1,
+          "sha256Hash": STREAM_METADATA_QUERY_HASH
+        }
+      }
+    },
+    {
+        "operationName": "UseViewCount",
+        "variables": {
+          "channelLogin": username
+        },
+        "extensions": {
+          "persistedQuery": {
+            "version": 1,
+            "sha256Hash": USE_VIEW_COUNT_QUERY_HASH
+          }
+        }
+    }]);
+
+    let response = match send_gql(query).await {
+        Ok(response) => response,
+        Err(err) => return Err(format!("Failed to get stream info: {err}")),
+    };
+
+    let Some(response) = response.as_array() else {
+        return Err(String::from("Stream info response was not an array."));
+    };
+
+    let info = &response[0];
+
+    let view_count = response[1]
+        .pointer("/data/user/stream/viewersCount")
+        .unwrap()
+        .as_u64()
+        .unwrap_or(0);
+
+    let title = info
+        .pointer("/data/user/lastBroadcast/title")
+        .unwrap()
+        .to_string();
+
+    let started_at = info
+        .pointer("/data/user/stream/createdAt")
+        .unwrap()
+        .to_string();
+
+    let game = info.pointer("/data/user/stream/game").unwrap();
+
+    let game_id = game.get("id").unwrap().as_str().unwrap();
+    let game_name = game.get("name").unwrap().as_str().unwrap().to_string();
+
+    let mut box_art = "https://static-cdn.jtvnw.net/ttv-static/404_boxart-144x192.jpg".to_string();
+
+    // Twitch usually has an updated box art in URLs without the _IGDB tag, try to use it if it exists
+    match HTTP_CLIENT
+        .get(format!("{BOXART_CDN}/{game_id}-144x192.jpg"))
+        .send()
+        .await
+    {
+        Ok(response) => {
+            if response.status().is_success() {
+                box_art = format!("{BOXART_CDN}/{game_id}-144x192.jpg").to_string();
+            } else {
+                box_art = format!("{BOXART_CDN}/{game_id}_IGDB-144x192.jpg").to_string();
+            };
+        }
+        Err(err) => {
+            error!("Failed to fetch box art: {err}");
+        }
+    }
+
+    let stream_info = StreamInfo {
+        title,
+        started_at,
+        game: game_name,
+        view_count,
+        box_art: box_art.to_string(),
+    };
+
+    Ok(stream_info)
 }
 
 pub struct PlaybackResponse {

@@ -51,7 +51,6 @@ Logs are stored in the following locations:
 - Add global Twitch emotes and fetch the user emotes.
 - Add persistent settings.
 - Better error handling in the frontend (show notification when user is not found, etc).
-- Button to show current stream info (game, viewcount, etc).
 - Try rt on other platforms.
 - Use a shared public .env for some settings in both frontend and backend.
 - Somehow make proxy work with `invoke`/another method that doesn't require a crate like axum (to avoid having a web server running).

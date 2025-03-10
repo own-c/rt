@@ -5,6 +5,7 @@ use log::info;
 use serde_json::Value;
 use tauri_plugin_http::reqwest::{
     header::{HeaderMap, HeaderValue},
+    redirect::Policy,
     Client as HttpClient,
 };
 use tokio::net::TcpListener;
@@ -24,6 +25,7 @@ lazy_static! {
     pub static ref HTTP_CLIENT: HttpClient = HttpClient::builder()
         .gzip(true)
         .use_rustls_tls()
+        .redirect(Policy::none())
         .https_only(true)
         .http2_prior_knowledge()
         .build()

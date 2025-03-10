@@ -130,7 +130,7 @@ pub struct ChatMessage {
     #[serde(rename = "n")]
     name: String,
     #[serde(rename = "f")]
-    first_msg: String,
+    first_msg: bool,
     #[serde(rename = "m")]
     fragments: Vec<Fragment>,
 }
@@ -218,7 +218,8 @@ pub async fn join_chat(
 
         let color = caps.name("color").unwrap().as_str().to_string();
         let display_name = caps.name("display_name").unwrap().as_str().to_string();
-        let first_msg = caps.name("first_msg").unwrap().as_str().to_string();
+        let first_msg = caps.name("first_msg").unwrap().as_str() != "0";
+
         let content = caps.name("message").unwrap().as_str().trim_end();
 
         if display_name.is_empty() || content.is_empty() {
