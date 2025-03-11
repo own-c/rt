@@ -5,9 +5,13 @@ use axum::http::StatusCode;
 use lazy_static::lazy_static;
 use log::{error, info};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde_json::json;
 use tokio::sync::Mutex;
 
-use crate::api::HTTP_CLIENT;
+use crate::api::{send_gql, HTTP_CLIENT};
+
+const TURBO_AND_SUB_UPSELL_QUERY_HASH: &str =
+    "5dbca380e47e37808c89479f51f789990ec653428a01b76c649ebe01afb3aa7e";
 
 const SEVENTV_API: &str = "https://7tv.io/v3";
 const BETTERTV_API: &str = "https://api.betterttv.net/3";
@@ -43,6 +47,14 @@ pub async fn get_user_emotes(username: &str, id: &str) -> Result<()> {
         return Ok(());
     }
 
+    let user_emotes = match fetch_user_emotes(username).await {
+        Ok(emotes) => emotes,
+        Err(err) => {
+            error!("Failed to fetch user emotes: {err}");
+            Vec::new()
+        }
+    };
+
     let seventv_emotes = match fetch_7tv_emotes(id).await {
         Ok(emotes) => emotes,
         Err(err) => {
@@ -59,7 +71,14 @@ pub async fn get_user_emotes(username: &str, id: &str) -> Result<()> {
         }
     };
 
-    let mut emotes = HashMap::with_capacity(seventv_emotes.len() + bettertv_emotes.len());
+    let mut emotes =
+        HashMap::with_capacity(user_emotes.len() + seventv_emotes.len() + bettertv_emotes.len());
+
+    emotes.extend(
+        user_emotes
+            .into_iter()
+            .map(|emote| (emote.name.clone(), emote)),
+    );
 
     emotes.extend(
         seventv_emotes
@@ -84,6 +103,73 @@ pub async fn get_user_emotes(username: &str, id: &str) -> Result<()> {
         );
 
     Ok(())
+}
+
+async fn fetch_user_emotes(username: &str) -> Result<Vec<Emote>> {
+    let query = json!({
+        "operationName": "TurboAndSubUpsell",
+        "variables": {
+            "channelLogin": username
+        },
+        "extensions": {
+            "persistedQuery": {
+            "version": 1,
+            "sha256Hash": TURBO_AND_SUB_UPSELL_QUERY_HASH
+            }
+        }
+    });
+
+    let response = match send_gql(query).await {
+        Ok(response) => response,
+        Err(err) => return Err(anyhow!("Failed to get user emotes: {err}")),
+    };
+
+    let data = match response.pointer("/data/user/subscriptionProducts") {
+        Some(val) => val.as_array(),
+        None => return Err(anyhow!("User subscription products not found")),
+    };
+
+    if data.is_none() {
+        return Err(anyhow!("User subscription products not found"));
+    }
+
+    let data = data.unwrap();
+
+    let mut user_emotes = Vec::new();
+
+    for product in data {
+        let product = product.as_object().unwrap();
+
+        let emotes = match product.get("emotes") {
+            Some(val) => val.as_array(),
+            None => continue,
+        };
+
+        let emotes = emotes.unwrap();
+        if emotes.is_empty() {
+            continue;
+        }
+
+        for emote in emotes {
+            // Not sure if another type can exist here, so checking if __typename is equal to Emote.
+            if emote.get("__typename").unwrap().as_str().unwrap() != "Emote" {
+                continue;
+            }
+
+            let id = emote.get("id").unwrap().as_str().unwrap();
+            let token = emote.get("token").unwrap().as_str().unwrap();
+            let emote = format!("https://static-cdn.jtvnw.net/emoticons/v2/{id}/default/dark/1.0");
+
+            user_emotes.push(Emote {
+                name: token.to_string(),
+                url: emote,
+                width: 28,
+                height: 28,
+            });
+        }
+    }
+
+    Ok(user_emotes)
 }
 
 #[derive(Deserialize, Default)]

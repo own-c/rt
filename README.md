@@ -60,10 +60,10 @@ Logs are stored in the following locations:
 
 ## TODO
 
-- Add global Twitch emotes and fetch the user emotes.
+- Add global Twitch emotes.
 - Add persistent settings (save stream resolution, volume, etc).
-- More helpers like getting a string from a json pointer.
 - Try rt on other desktops.
+- Move to structs for gql query and responses.
 - Somehow make proxy work with `invoke`/another method that doesn't require a local server, might require parsing the m3u8 in the frontend.
 - Use Tauri's channels to notify more events, like when the stream has been switched to a backup one and more.
 - Try to reduce as much as possible the amount of requests made to Twitch.

@@ -73,7 +73,7 @@
 		showContextMenu = false;
 		await removeUser(rightClickedUser);
 
-		info(`Removed '${username}'`);
+		info(`Removed '${rightClickedUser}'`);
 	}
 
 	onMount(() => {
