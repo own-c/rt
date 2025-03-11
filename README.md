@@ -62,14 +62,9 @@ Logs are stored in the following locations:
 
 - Add global Twitch emotes and fetch the user emotes.
 - Add persistent settings (save stream resolution, volume, etc).
-- Error handling in the frontend (show notification when user is not found for example).
 - More helpers like getting a string from a json pointer.
-- Separate some frontend elements into components.
 - Try rt on other desktops.
-- Use a shared public .env for some variables in both frontend and backend.
-- Somehow make proxy work with `invoke`/another method that doesn't require a crate like axum (to avoid having a web server running).
-- Service worker to cache emotes? Not sure if Tauri supports it (doesn't clear them on launch) or if theres a Tauri equivalent.
-- Add back ability to rewind the video, currently using `ll-live` for the player which disables it.
+- Somehow make proxy work with `invoke`/another method that doesn't require a local server, might require parsing the m3u8 in the frontend.
 - Use Tauri's channels to notify more events, like when the stream has been switched to a backup one and more.
 - Try to reduce as much as possible the amount of requests made to Twitch.
 - Fix `join_chat` errors when hard refreshing the page while in a chat.

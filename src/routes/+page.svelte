@@ -10,17 +10,32 @@
 	import Titlebar from '$lib/components/Titlebar.svelte';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import Chat from '$lib/components/Chat.svelte';
+	import Notification, { error } from '$lib/components/Notification.svelte';
 
 	import { initUsers } from '$lib/logic/Users.svelte';
 	import { watching, fetchAndSetUser } from '$lib/logic/Stream.svelte';
 
 	let showChat = $state(false);
+	let movingMouse = $state(false);
+	let timer = $state() as any;
+
 	function toggleChat() {
 		showChat = !showChat;
 	}
 
+	function handleMousemove() {
+		movingMouse = true;
+
+		clearTimeout(timer);
+
+		timer = setTimeout(() => {
+			movingMouse = false;
+		}, 1500);
+	}
+
 	const twitchReg = new RegExp('twitch.tv/([a-zA-Z0-9_]+)');
 
+	// Disable tab navigation
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.key === 'Tab') {
 			event.preventDefault();
@@ -31,10 +46,10 @@
 		await initUsers();
 
 		await onOpenUrl(async (urls) => {
-			let username = '';
-
 			if (urls && urls[0]) {
 				const url = urls[0];
+
+				let username = '';
 
 				const matches = url.match(twitchReg);
 				if (matches && matches[1]) {
@@ -42,6 +57,11 @@
 				} else {
 					const parts = url.replace('rt://', '').trim().split('/');
 					username = parts[0];
+				}
+
+				if (!username) {
+					error(`Username was empty when opening via URL. ${urls}`);
+					return;
 				}
 
 				await fetchAndSetUser(username);
@@ -56,13 +76,13 @@
 	onkeydown={handleKeyDown}
 >
 	{#key watching.username}
-		<Titlebar {toggleChat} />
+		<Titlebar />
 	{/key}
 
-	<div class="flex min-h-full w-full">
+	<main class="flex min-h-full w-full items-center justify-center">
 		<Sidebar />
 
-		<main class="flex w-full h-full">
+		<div class="flex w-full h-full" onmousemove={handleMousemove}>
 			{#key watching.username}
 				<div class="flex w-full h-full">
 					{#if watching.username}
@@ -77,12 +97,48 @@
 					{/if}
 				</div>
 
+				{#if watching.live}
+					<button
+						title="Expand chat"
+						class="fixed top-8 right-0 p-2 z-50 hover:bg-neutral-700"
+						onclick={toggleChat}
+					>
+						{#if movingMouse && !showChat}
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="1em"
+								height="1em"
+								viewBox="0 0 2048 2048"
+								><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
+									fill="currentColor"
+									d="m1170 146l-879 878l879 878l-121 121l-999-999l999-999zm853 0l-878 878l878 878l-121 121l-999-999l999-999z"
+								/></svg
+							>
+						{/if}
+
+						{#if showChat}
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="1em"
+								height="1em"
+								viewBox="0 0 2048 2048"
+								><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
+									fill="currentColor"
+									d="m903 146l879 878l-879 878l121 121l999-999l-999-999zm-853 0l878 878l-878 878l121 121l999-999L171 25z"
+								/></svg
+							>
+						{/if}
+					</button>
+				{/if}
+
 				<div class="h-full min-w-1/5 max-w-1/5" hidden={!showChat}>
 					<Chat username={watching.username} isLive={watching.live} />
 				</div>
 			{/key}
-		</main>
-	</div>
+		</div>
+	</main>
+
+	<Notification />
 </div>
 
 <style>

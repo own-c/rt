@@ -9,23 +9,19 @@
 	import type { StreamInfo } from '$lib/Types';
 
 	const appWindow = getCurrentWindow();
-
-	let showPopup = $state(false);
-	let loading = $state(true);
-	let lastUpdate = $state() as Date;
-	let streamInfo = $state() as StreamInfo;
-
-	let { toggleChat } = $props();
-	let showChat = $state(false);
-
 	let maximized = $state(false);
+
+	let showInfo = $state(false);
+	let loadingInfo = $state(true);
+	let streamInfo = $state() as StreamInfo;
+	let lastUpdate = $state() as Date;
 
 	async function openInBrowser() {
 		await openUrl(`https://www.twitch.tv/${watching.username}`);
 	}
 
 	async function onHoverStart() {
-		showPopup = true;
+		showInfo = true;
 
 		const now = new Date();
 
@@ -35,12 +31,12 @@
 		}
 
 		lastUpdate = now;
-		loading = true;
+		loadingInfo = true;
 
 		const data: StreamInfo = await invoke('get_stream_info', { username: watching.username });
 
-		const cleanedStartedAt = JSON.parse(data.started_at);
-		const startedAtDate = new Date(cleanedStartedAt);
+		const startedAt = JSON.parse(data.started_at);
+		const startedAtDate = new Date(startedAt);
 
 		const diff = now.getTime() - startedAtDate.getTime();
 		const totalSeconds = Math.floor(diff / 1000);
@@ -55,16 +51,11 @@
 		data.started_at = `${hours}:${formattedMinutes}:${formattedSeconds}`;
 
 		streamInfo = data;
-		loading = false;
+		loadingInfo = false;
 	}
 
 	function onHoverEnd() {
-		showPopup = false;
-	}
-
-	function updateChatToggle() {
-		showChat = !showChat;
-		toggleChat();
+		showInfo = false;
 	}
 
 	onMount(async () => {
@@ -87,102 +78,79 @@
 				{watching.username}
 			</button>
 
-			<div
-				role="tooltip"
-				class="px-2 hover:bg-neutral-700 flex items-center"
-				onmouseenter={onHoverStart}
-				onmouseleave={onHoverEnd}
-			>
-				<div class="relative inline-block">
-					<div class="px-1 hover:bg-neutral-700 flex items-center">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							width="1.0em"
-							height="1.0em"
-							viewBox="0 0 2048 2048"
-							><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
-								fill="currentColor"
-								d="M960 0q132 0 255 34t229 97t194 150t150 194t97 230t35 255t-34 255t-97 229t-150 194t-194 150t-230 97t-255 35t-255-34t-229-97t-194-150t-150-194t-97-229T0 960q0-132 34-255t97-229t150-194t194-150t229-97T960 0m64 768H896v640h128zm0-256H896v128h128z"
-							/></svg
-						>
-					</div>
+			{#if watching.live}
+				<div
+					role="tooltip"
+					class="px-2 hover:bg-neutral-700 flex items-center"
+					onmouseenter={onHoverStart}
+					onmouseleave={onHoverEnd}
+				>
+					<div class="relative inline-block">
+						<div class="px-1 hover:bg-neutral-700 flex items-center">
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width="1.0em"
+								height="1.0em"
+								viewBox="0 0 2048 2048"
+								><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
+									fill="currentColor"
+									d="M960 0q132 0 255 34t229 97t194 150t150 194t97 230t35 255t-34 255t-97 229t-150 194t-194 150t-230 97t-255 35t-255-34t-229-97t-194-150t-150-194t-97-229T0 960q0-132 34-255t97-229t150-194t194-150t229-97T960 0m64 768H896v640h128zm0-256H896v128h128z"
+								/></svg
+							>
+						</div>
 
-					{#if showPopup}
-						{#if !loading}
-							<div class="absolute z-50 right-0 top-6 w-96 h-32" style="user-select: text;">
-								<div
-									class="relative flex gap-2 w-full h-full bg-neutral-800 shadow-lg rounded-md border border-white/20"
-								>
-									<img
-										src={streamInfo.box_art}
-										alt="Game Boxart"
-										class="object-cover aspect-ratio h-full"
-									/>
+						{#if showInfo}
+							{#if !loadingInfo}
+								<div class="absolute z-50 right-0 top-6 w-96 h-32" style="user-select: text;">
+									<div
+										class="relative flex gap-2 w-full h-full bg-neutral-800 shadow-lg rounded-md border border-white/20"
+									>
+										<img
+											src={streamInfo.box_art}
+											alt="Game Boxart"
+											class="object-cover aspect-ratio h-full"
+										/>
 
-									<div class="flex flex-col py-1 mr-2 text-sm">
-										<div class="font-bold">
-											{streamInfo.title}
+										<div class="flex flex-col py-1 mr-2 text-sm">
+											<div class="font-bold">
+												{streamInfo.title}
+											</div>
+
+											<div>
+												{streamInfo.started_at} - {streamInfo.view_count} viewers
+											</div>
+
+											<div class="flex-1"></div>
+
+											<p
+												title={streamInfo.game}
+												class="italic overflow-hidden text-ellipsis truncate"
+											>
+												{streamInfo.game}
+											</p>
 										</div>
-
-										<div>
-											{streamInfo.started_at} - {streamInfo.view_count} viewers
-										</div>
-
-										<div class="flex-1"></div>
-
-										<p
-											title={streamInfo.game}
-											class="italic overflow-hidden text-ellipsis truncate"
-										>
-											{streamInfo.game}
-										</p>
 									</div>
 								</div>
-							</div>
-						{:else}
-							<div
-								class="absolute z-50 right-0 top-6 w-96 max-w-128 h-32"
-								style="user-select: text;"
-							>
+							{:else}
 								<div
-									class="relative flex gap-2 w-full h-full bg-neutral-800 shadow-lg rounded-md border border-white/20 animate-pulse"
-								></div>
-							</div>
+									class="absolute z-50 right-0 top-6 w-96 max-w-128 h-32"
+									style="user-select: text;"
+								>
+									<div
+										class="relative flex gap-2 w-full h-full bg-neutral-800 shadow-lg rounded-md border border-white/20 animate-pulse"
+									></div>
+								</div>
+							{/if}
 						{/if}
-					{/if}
+					</div>
 				</div>
-			</div>
+			{/if}
 		</div>
 	{:else}
 		<div class="flex-1"></div>
 	{/if}
 
 	<div class="flex h-full">
-		{#if watching.live}
-			<button
-				aria-label="Expand chat"
-				title={showChat ? 'Collapse chat' : 'Expand chat'}
-				onclick={() => updateChatToggle()}
-				class="px-2 hover:bg-neutral-700"
-			>
-				{#if showChat}
-					<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 2048 2048"
-						><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
-							fill="currentColor"
-							d="m903 146l879 878l-879 878l121 121l999-999l-999-999zm-853 0l878 878l-878 878l121 121l999-999L171 25z"
-						/></svg
-					>
-				{:else}
-					<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 2048 2048"
-						><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
-							fill="currentColor"
-							d="m1170 146l-879 878l879 878l-121 121l-999-999l999-999zm853 0l-878 878l878 878l-121 121l-999-999l999-999z"
-						/></svg
-					>
-				{/if}
-			</button>
-		{/if}
-
 		<button
 			aria-label="Minimize"
 			title="Minimize"

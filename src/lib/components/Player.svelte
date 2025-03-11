@@ -7,7 +7,7 @@
 {#if isLive}
 	<media-player
 		autoPlay={true}
-		streamType="ll-live"
+		streamType="on-demand"
 		class="max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)]"
 		style="--plyr-border-radius: 0px;"
 	>

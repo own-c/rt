@@ -113,6 +113,10 @@
 	class="relative h-[calc(100vh-2rem)] min-w-full max-w-full border-l-2 border-white/20 text-sm"
 	style="user-select: text;"
 >
+	<div class="h-8"></div>
+
+	<hr class="border-white/20 w-full" />
+
 	<div
 		data-simplebar
 		bind:this={chatContainer}

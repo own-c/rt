@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 
+	import { info } from './Notification.svelte';
+
 	import { refreshUsers, removeUser, usersMap } from '$lib/logic/Users.svelte';
 	import { fetchAndSetUser, watching } from '$lib/logic/Stream.svelte';
 
@@ -48,6 +50,8 @@
 		loading = true;
 		await refreshUsers();
 		loading = false;
+
+		info('Refreshed users');
 	}
 
 	async function changeStream(username: string) {
@@ -61,11 +65,15 @@
 		loading = true;
 		await fetchAndSetUser(username);
 		loading = false;
+
+		info(`Added '${username}'`);
 	}
 
-	function remove() {
+	async function remove() {
 		showContextMenu = false;
-		removeUser(rightClickedUser);
+		await removeUser(rightClickedUser);
+
+		info(`Removed '${username}'`);
 	}
 
 	onMount(() => {
