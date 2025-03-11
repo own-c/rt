@@ -14,9 +14,6 @@ incremental = true
 [profile.release]
 codegen-units = 1
 lto = true
-opt-level = "s"
-panic = "abort"
-strip = true
 
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
