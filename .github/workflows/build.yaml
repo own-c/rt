@@ -47,7 +47,7 @@ jobs:
           workspaces: "./src-tauri -> target"
 
       - name: Install cargo-xwin
-        run: cargo install --locked cargo-xwin
+        run: cargo install --locked cargo-xwin --xwin-cache-dir ~/.xwin
 
       - name: Run clippy
         working-directory: src-tauri
