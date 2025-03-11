@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { fade } from 'svelte/transition';
 
 	import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
 
@@ -17,7 +18,7 @@
 
 	let showChat = $state(false);
 	let movingMouse = $state(false);
-	let timer = $state() as any;
+	let timer = $state(0);
 
 	function toggleChat() {
 		showChat = !showChat;
@@ -30,7 +31,7 @@
 
 		timer = setTimeout(() => {
 			movingMouse = false;
-		}, 1500);
+		}, 2000);
 	}
 
 	const twitchReg = new RegExp('twitch.tv/([a-zA-Z0-9_]+)');
@@ -98,12 +99,14 @@
 				</div>
 
 				{#if watching.live}
-					<button
-						title="Expand chat"
-						class="fixed top-8 right-0 p-2 z-50 hover:bg-neutral-700"
-						onclick={toggleChat}
-					>
-						{#if movingMouse && !showChat}
+					{#if movingMouse && !showChat}
+						<button
+							title="Expand chat"
+							class="fixed top-8 right-0 p-2 z-50 hover:bg-neutral-700"
+							onclick={toggleChat}
+							in:fade={{ duration: 25 }}
+							out:fade={{ duration: 200 }}
+						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
 								width="1em"
@@ -114,9 +117,15 @@
 									d="m1170 146l-879 878l879 878l-121 121l-999-999l999-999zm853 0l-878 878l878 878l-121 121l-999-999l999-999z"
 								/></svg
 							>
-						{/if}
+						</button>
+					{/if}
 
-						{#if showChat}
+					{#if showChat}
+						<button
+							title="Expand chat"
+							class="fixed top-8 right-0 p-2 z-50 hover:bg-neutral-700"
+							onclick={toggleChat}
+						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
 								width="1em"
@@ -127,8 +136,8 @@
 									d="m903 146l879 878l-879 878l121 121l999-999l-999-999zm-853 0l878 878l-878 878l121 121l999-999L171 25z"
 								/></svg
 							>
-						{/if}
-					</button>
+						</button>
+					{/if}
 				{/if}
 
 				<div class="h-full min-w-1/5 max-w-1/5" hidden={!showChat}>
