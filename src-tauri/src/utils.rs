@@ -5,7 +5,7 @@ use axum::http::{HeaderMap, HeaderValue};
 use log::error;
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::{user::BOXART_CDN, CLIENT_ID, GRAPHQL_API, HTTP_CLIENT};
+use crate::{user::BOXART_CDN, GRAPHQL_API, HTTP_CLIENT};
 
 pub fn random_number(start: u32, end: u32) -> u32 {
     let nanos = SystemTime::now()
@@ -49,7 +49,12 @@ where
     ResponseJson: DeserializeOwned,
 {
     let mut headers = HeaderMap::new();
-    headers.insert("Client-ID", HeaderValue::from_str(CLIENT_ID)?);
+
+    headers.insert(
+        "Client-ID",
+        HeaderValue::from_str("kimne78kx3ncx6brgo4mv6wki5h1ko")?,
+    );
+
     headers.insert("Content-Type", HeaderValue::from_static("application/json"));
 
     let response = HTTP_CLIENT

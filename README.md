@@ -63,6 +63,6 @@ Logs are stored in the following locations:
 - Add global Twitch emotes.
 - Add persistent settings (save stream resolution, volume, etc).
 - Try rt on other desktops.
-- Use Tauri's channels to notify more events, like when the stream has been switched to a backup one and more.
 - Put the seek bar at the end when joining a stream, currently it is 20~ seconds behind when first joining.
+- Fix weird timeout of 10s when switching streams.
 - Improve logging.

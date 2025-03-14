@@ -12,11 +12,11 @@ use lazy_static::lazy_static;
 use log::{error, info};
 use regex::Regex;
 use serde::Deserialize;
-use tauri::Url;
+use tauri::{Emitter, Url};
 use tauri_plugin_http::reqwest::header::HeaderValue;
 use tokio::sync::Mutex;
 
-use crate::{user, LOCAL_API_ADDR, PROXY_HTTP_CLIENT};
+use crate::{user, APP_HANDLE, LOCAL_API_ADDR, PROXY_HTTP_CLIENT};
 
 lazy_static! {
     static ref USING_BACKUP: AtomicBool = AtomicBool::new(false);
@@ -73,6 +73,17 @@ pub async fn proxy_stream(Query(query): Query<ProxyStreamQuery>) -> impl IntoRes
             if ad_detected {
                 if !USING_BACKUP.load(Ordering::SeqCst) {
                     info!("Found ad in variant playlist. Switching to backup stream.");
+
+                    if let Err(err) = APP_HANDLE
+                        .lock()
+                        .await
+                        .as_ref()
+                        .unwrap()
+                        .emit("stream", "backup")
+                    {
+                        error!("Failed to emit event: {err}");
+                    };
+
                     USING_BACKUP.store(true, Ordering::SeqCst);
                 }
 
@@ -85,6 +96,17 @@ pub async fn proxy_stream(Query(query): Query<ProxyStreamQuery>) -> impl IntoRes
                 }
             } else if USING_BACKUP.load(Ordering::SeqCst) {
                 info!("No ad detected. Switching back to main stream.");
+
+                if let Err(err) = APP_HANDLE
+                    .lock()
+                    .await
+                    .as_ref()
+                    .unwrap()
+                    .emit("stream", "main")
+                {
+                    error!("Failed to emit event: {err}");
+                };
+
                 USING_BACKUP.store(false, Ordering::SeqCst);
 
                 match fetch_main_stream(&username).await {

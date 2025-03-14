@@ -3,6 +3,7 @@
 	import { fade } from 'svelte/transition';
 
 	import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
+	import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 	import 'simplebar';
 	import 'simplebar/dist/simplebar.css';
@@ -11,9 +12,21 @@
 	import Titlebar from '$lib/components/Titlebar.svelte';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import Chat from '$lib/components/Chat.svelte';
-	import Notification, { error } from '$lib/components/Notification.svelte';
+	import Notification, { error, info } from '$lib/components/Notification.svelte';
 
 	import { watching, initStores, updateUser } from '$lib/Stores.svelte';
+
+	const appWebview = getCurrentWebviewWindow();
+	appWebview.listen<string>('stream', (event) => {
+		switch (event.payload) {
+			case 'main':
+				info('No ads detected, switching main stream.');
+				break;
+			case 'backup':
+				info('Found Ads, switching to backup stream.');
+				break;
+		}
+	});
 
 	let showChat = $state(false);
 	let movingMouse = $state(false);

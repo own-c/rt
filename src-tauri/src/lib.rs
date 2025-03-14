@@ -7,7 +7,7 @@ use lazy_static::lazy_static;
 use log::{error, info};
 use tauri::{
     async_runtime::{self, Mutex},
-    App,
+    App, AppHandle, Manager,
 };
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_http::reqwest::{redirect::Policy, Client};
@@ -28,8 +28,6 @@ mod utils;
 pub const LOCAL_API_ADDR: &str = "127.0.0.1:3030";
 
 pub const GRAPHQL_API: &str = "https://gql.twitch.tv/gql";
-
-pub const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 
 pub struct ChatState {
     current_chat: Option<String>,
@@ -59,6 +57,9 @@ lazy_static! {
         .https_only(true)
         .build()
         .unwrap();
+
+    // Hold the AppHandle to allow events to be sent to the main window.
+    pub static ref APP_HANDLE: Mutex<Option<AppHandle>> = Mutex::new(None);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -98,7 +99,13 @@ pub fn run() {
 
             load_emotes(app);
 
-            async_runtime::block_on(async move { init_chat_state().await })?;
+            let app_handle = app.app_handle();
+
+            async_runtime::block_on(async move {
+                *APP_HANDLE.lock().await = Some(app_handle.clone());
+
+                init_chat_state().await
+            })?;
 
             async_runtime::spawn(async { start_api_server().await });
 
