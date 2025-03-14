@@ -11,5 +11,6 @@
 		"strict": true,
 		"moduleResolution": "bundler",
 		"types": ["vidstack/svelte"]
-	}
+	},
+	"include": ["src/**/*", "src/app.d.ts"]
 }

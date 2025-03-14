@@ -13,8 +13,7 @@
 	import Chat from '$lib/components/Chat.svelte';
 	import Notification, { error } from '$lib/components/Notification.svelte';
 
-	import { initUsers } from '$lib/logic/Users.svelte';
-	import { watching, fetchAndSetUser } from '$lib/logic/Stream.svelte';
+	import { watching, initStores, updateUser } from '$lib/Stores.svelte';
 
 	let showChat = $state(false);
 	let movingMouse = $state(false);
@@ -44,7 +43,7 @@
 	}
 
 	onMount(async () => {
-		await initUsers();
+		await initStores();
 
 		await onOpenUrl(async (urls) => {
 			if (urls && urls[0]) {
@@ -61,11 +60,11 @@
 				}
 
 				if (!username) {
-					error(`Username was empty when opening via URL. ${urls}`);
+					error(`Username was empty when opening via URL`, `URLS: ${urls.join(', ')}`);
 					return;
 				}
 
-				await fetchAndSetUser(username);
+				await updateUser(username, true);
 			}
 		});
 	});
@@ -87,7 +86,7 @@
 			{#key watching.username}
 				<div class="flex w-full h-full">
 					{#if watching.username}
-						<Player isLive={watching.live} url={watching.url} />
+						<Player />
 					{:else}
 						<div class="flex flex-col items-center justify-center h-full w-full">
 							<div class="text-center">
@@ -98,7 +97,7 @@
 					{/if}
 				</div>
 
-				{#if watching.live}
+				{#if watching.url}
 					{#if movingMouse && !showChat}
 						<button
 							title="Expand chat"
@@ -141,7 +140,7 @@
 				{/if}
 
 				<div class="h-full min-w-1/5 max-w-1/5" hidden={!showChat}>
-					<Chat username={watching.username} isLive={watching.live} />
+					<Chat />
 				</div>
 			{/key}
 		</div>

@@ -1,22 +1,17 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Mutex};
 
 use anyhow::{anyhow, Context, Result};
 use axum::http::StatusCode;
 use lazy_static::lazy_static;
-use log::{error, info};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde_json::json;
-use tokio::sync::Mutex;
 
-use crate::api::{send_gql, HTTP_CLIENT};
+use crate::HTTP_CLIENT;
 
-const TURBO_AND_SUB_UPSELL_QUERY_HASH: &str =
-    "5dbca380e47e37808c89479f51f789990ec653428a01b76c649ebe01afb3aa7e";
-
+pub const TWITCH_EMOTES_CDN: &str = "https://static-cdn.jtvnw.net/emoticons/v2";
 const SEVENTV_API: &str = "https://7tv.io/v3";
 const BETTERTV_API: &str = "https://api.betterttv.net/3";
 
-#[derive(Serialize, Default, Clone, Debug)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Emote {
     #[serde(rename = "n")]
     pub name: String,
@@ -31,145 +26,6 @@ pub struct Emote {
 lazy_static! {
     pub static ref EMOTES_CACHE: Mutex<HashMap<String, HashMap<String, Emote>>> =
         Mutex::new(HashMap::new());
-}
-
-pub async fn get_user_emotes(username: &str, id: &str) -> Result<()> {
-    if username.is_empty() {
-        return Err(anyhow!("No username provided"));
-    }
-
-    if id.is_empty() {
-        return Err(anyhow!("ID for '{username}' is empty"));
-    }
-
-    let mut cache = EMOTES_CACHE.lock().await;
-    if cache.contains_key(username) {
-        return Ok(());
-    }
-
-    let user_emotes = match fetch_user_emotes(username).await {
-        Ok(emotes) => emotes,
-        Err(err) => {
-            error!("Failed to fetch user emotes: {err}");
-            Vec::new()
-        }
-    };
-
-    let seventv_emotes = match fetch_7tv_emotes(id).await {
-        Ok(emotes) => emotes,
-        Err(err) => {
-            error!("Failed to fetch 7tv emotes: {err}");
-            Vec::new()
-        }
-    };
-
-    let bettertv_emotes = match fetch_bettertv_emotes(id).await {
-        Ok(emotes) => emotes,
-        Err(err) => {
-            error!("Failed to fetch bettertv emotes: {err}");
-            Vec::new()
-        }
-    };
-
-    let mut emotes =
-        HashMap::with_capacity(user_emotes.len() + seventv_emotes.len() + bettertv_emotes.len());
-
-    emotes.extend(
-        user_emotes
-            .into_iter()
-            .map(|emote| (emote.name.clone(), emote)),
-    );
-
-    emotes.extend(
-        seventv_emotes
-            .into_iter()
-            .map(|emote| (emote.name.clone(), emote)),
-    );
-
-    emotes.extend(
-        bettertv_emotes
-            .into_iter()
-            .map(|emote| (emote.name.clone(), emote)),
-    );
-
-    info!("Updating emotes for '{username}'");
-    cache
-        .entry(username.to_string())
-        .or_insert_with(HashMap::new)
-        .extend(
-            emotes
-                .iter()
-                .map(|(name, emote)| (name.clone(), emote.clone())),
-        );
-
-    Ok(())
-}
-
-async fn fetch_user_emotes(username: &str) -> Result<Vec<Emote>> {
-    let query = json!({
-        "operationName": "TurboAndSubUpsell",
-        "variables": {
-            "channelLogin": username
-        },
-        "extensions": {
-            "persistedQuery": {
-            "version": 1,
-            "sha256Hash": TURBO_AND_SUB_UPSELL_QUERY_HASH
-            }
-        }
-    });
-
-    let response = match send_gql(query).await {
-        Ok(response) => response,
-        Err(err) => return Err(anyhow!("Failed to get user emotes: {err}")),
-    };
-
-    let data = match response.pointer("/data/user/subscriptionProducts") {
-        Some(val) => val.as_array(),
-        None => return Err(anyhow!("User subscription products not found")),
-    };
-
-    if data.is_none() {
-        return Err(anyhow!("User subscription products not found"));
-    }
-
-    let data = data.unwrap();
-
-    let mut user_emotes = Vec::new();
-
-    for product in data {
-        let product = product.as_object().unwrap();
-
-        let emotes = match product.get("emotes") {
-            Some(val) => val.as_array(),
-            None => continue,
-        };
-
-        let emotes = emotes.unwrap();
-        if emotes.is_empty() {
-            continue;
-        }
-
-        for emote in emotes {
-            // Not sure if another type can exist here, so checking if __typename is equal to Emote.
-            if emote.get("__typename").unwrap().as_str().unwrap() != "Emote" {
-                continue;
-            }
-
-            let id = emote.get("id").unwrap().as_str().unwrap();
-            let token = emote.get("token").unwrap().as_str().unwrap();
-            let emote = format!("https://static-cdn.jtvnw.net/emoticons/v2/{id}/default/dark/1.0");
-
-            user_emotes.push(Emote {
-                name: token.to_string(),
-                url: emote,
-                width: 28,
-                height: 28,
-            });
-        }
-    }
-
-    Ok(user_emotes)
 }
 
 #[derive(Deserialize, Default)]
@@ -188,7 +44,7 @@ pub struct BetterTTVEmote {
     height: Option<i64>,
 }
 
-async fn fetch_bettertv_emotes(id: &str) -> Result<Vec<Emote>> {
+pub async fn fetch_bettertv_emotes(id: &str) -> Result<HashMap<String, Emote>> {
     let response = fetch_and_deserialize::<BetterTTVResponse>(&format!(
         "{BETTERTV_API}/cached/users/twitch/{id}"
     ))
@@ -196,18 +52,21 @@ async fn fetch_bettertv_emotes(id: &str) -> Result<Vec<Emote>> {
 
     let raw_emotes = [&response.channel_emotes[..], &response.shared_emotes[..]].concat();
 
-    let emotes = raw_emotes
-        .into_iter()
-        .map(|emote| {
-            let url = format!("https://cdn.betterttv.net/emote/{}/1x", emote.id);
-            Emote {
-                name: emote.code,
-                url,
-                width: emote.width.unwrap_or(28),
-                height: emote.height.unwrap_or(28),
-            }
-        })
-        .collect();
+    let mut emotes: HashMap<String, Emote> = HashMap::new();
+
+    for emote in raw_emotes {
+        let name = emote.code;
+        let url = format!("https://cdn.betterttv.net/emote/{}/1x", emote.id);
+
+        let emote = Emote {
+            name: name.clone(),
+            url,
+            width: emote.width.unwrap_or(28),
+            height: emote.height.unwrap_or(28),
+        };
+
+        emotes.insert(name, emote);
+    }
 
     Ok(emotes)
 }
@@ -247,48 +106,58 @@ struct SevenTVEmoteDataHostFile {
     format: String,
 }
 
-async fn fetch_7tv_emotes(id: &str) -> Result<Vec<Emote>> {
+pub async fn fetch_7tv_emotes(id: &str) -> Result<HashMap<String, Emote>> {
     let response =
         fetch_and_deserialize::<SevenTVResponse>(&format!("{SEVENTV_API}/users/twitch/{id}"))
             .await?;
 
-    let emotes: Vec<Emote> = response
-        .emote_set
-        .emotes
-        .into_iter()
-        .filter_map(|mut emote| {
-            emote
-                .data
-                .host
-                .files
-                .retain(|file| file.name.starts_with('1'));
+    let mut emotes: HashMap<String, Emote> = HashMap::new();
 
-            (!emote.data.host.files.is_empty()).then_some(emote)
-        })
-        .filter_map(|emote| {
-            let host = emote.data.host;
-            let name = emote.name;
+    for mut emote in response.emote_set.emotes {
+        emote
+            .data
+            .host
+            .files
+            .retain(|file| file.name.starts_with('1'));
 
-            let priority = |format: &str| match format.to_uppercase().as_str() {
-                "AVIF" => Some(0),
-                "WEBP" => Some(1),
-                "PNG" => Some(2),
-                "GIF" => Some(3),
-                _ => None,
+        if emote.data.host.files.is_empty() {
+            continue;
+        }
+
+        let host = emote.data.host;
+        let name = emote.name.clone();
+
+        // Define a closure to assign a priority to each file format
+        let priority = |format: &str| match format.to_uppercase().as_str() {
+            "AVIF" => Some(0),
+            "WEBP" => Some(1),
+            "PNG" => Some(2),
+            "GIF" => Some(3),
+            _ => None,
+        };
+
+        // Find the file with the highest priority (lowest number)
+        let mut best_priority: Option<usize> = None;
+        let mut best_file: Option<&_> = None;
+        for file in &host.files {
+            if let Some(p) = priority(&file.format) {
+                if best_priority.is_none() || p < best_priority.unwrap() {
+                    best_priority = Some(p);
+                    best_file = Some(file);
+                }
+            }
+        }
+
+        if let Some(file) = best_file {
+            let new_emote = Emote {
+                name: name.clone(),
+                url: format!("https:{}/{}", host.url, file.name),
+                width: file.width,
+                height: file.height,
             };
-
-            host.files
-                .iter()
-                .filter_map(|file| priority(&file.format).map(|p| (p, file)))
-                .min_by_key(|(p, _)| *p)
-                .map(|(_, file)| Emote {
-                    name,
-                    url: format!("https:{}/{}", host.url, file.name),
-                    width: file.width,
-                    height: file.height,
-                })
-        })
-        .collect();
+            emotes.insert(name, new_emote);
+        }
+    }
 
     Ok(emotes)
 }
@@ -298,7 +167,7 @@ async fn fetch_and_deserialize<T: DeserializeOwned>(url: &str) -> Result<T> {
         .get(url)
         .send()
         .await
-        .context("Failed to send request")?;
+        .context("Failed to send emotes request")?;
 
     let status = response.status();
 
@@ -306,20 +175,13 @@ async fn fetch_and_deserialize<T: DeserializeOwned>(url: &str) -> Result<T> {
         let error_body = response
             .text()
             .await
-            .unwrap_or_else(|err| format!("Unknown error: {err}"));
+            .context("Failed to read response body")?;
 
         return Err(anyhow!("Request failed with status {status}: {error_body}"));
     }
 
-    let body = response
-        .bytes()
+    response
+        .json()
         .await
-        .context("Failed to read response body")?;
-
-    if body.is_empty() {
-        return Err(anyhow!("Received empty response"));
-    }
-
-    let data: T = serde_json::from_slice(&body).context("Failed to deserialize response")?;
-    Ok(data)
+        .context("Failed to deserialize emotes response")
 }

@@ -1,24 +1,28 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, convert::Infallible, sync::Arc, time::Duration};
 
 use crate::{
     emote::{Emote, EMOTES_CACHE},
-    utils, AppState,
+    utils, CHAT_STATE,
 };
 use anyhow::Result;
+use axum::{
+    extract::Path,
+    response::{
+        sse::{Event, KeepAlive},
+        Sse,
+    },
+};
 use futures_util::{SinkExt, StreamExt};
 use lazy_static::lazy_static;
 use log::{error, info};
 use regex::Regex;
 use serde::Serialize;
-use tauri::{
-    async_runtime::{self, Mutex},
-    ipc::Channel,
-    State,
-};
+use tauri::async_runtime;
 use tokio::{
     sync::{broadcast, mpsc},
     time,
 };
+use tokio_stream::wrappers::BroadcastStream;
 use tokio_tungstenite::tungstenite::Message;
 
 const WS_CHAT_URL: &str = "wss://irc-ws.chat.twitch.tv";
@@ -97,10 +101,6 @@ pub async fn init_irc_connection() -> Result<(mpsc::Sender<String>, broadcast::S
                     // Process messages coming from sender.
                     sender_msg = ws_sender_rx.recv() => {
                         if let Some(msg) = sender_msg {
-                            if let Err(err) = broadcast.send(msg.clone()) {
-                                error!("Failed to send back message: {err}");
-                            }
-
                             if let Err(err) = ws_sink.send(msg.into()).await {
                                 error!("Failed to send message: {err}");
                             }
@@ -116,14 +116,7 @@ pub async fn init_irc_connection() -> Result<(mpsc::Sender<String>, broadcast::S
     Ok((ws_sender_tx, ws_broadcast_tx))
 }
 
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase", tag = "event", content = "data")]
-pub enum ChatEvent {
-    #[serde(rename_all = "camelCase")]
-    Message(ChatMessage),
-}
-
-#[derive(Serialize, Clone)]
+#[derive(Serialize)]
 pub struct ChatMessage {
     #[serde(rename = "c")]
     color: String,
@@ -135,7 +128,7 @@ pub struct ChatMessage {
     fragments: Vec<Fragment>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize)]
 struct Fragment {
     #[serde(rename = "t")]
     r#type: u8,
@@ -145,36 +138,12 @@ struct Fragment {
     emote: Option<Emote>,
 }
 
-#[tauri::command]
-pub async fn leave_chat(state: State<'_, Mutex<AppState>>, username: &str) -> Result<(), String> {
-    let mut state = state.lock().await;
-
-    let sender = state.sender.clone();
-
-    if state.current_stream.is_some() {
-        let old = state.current_stream.clone().unwrap();
-        if old != username {
-            info!("Leaving '{old}' chat");
-            if let Err(err) = sender.send(format!("PART #{old}")).await {
-                error!("Send: {err}");
-            }
-
-            state.current_stream = None;
-        }
-    }
-
-    Ok(())
-}
-
-#[tauri::command]
 pub async fn join_chat(
-    state: State<'_, Mutex<AppState>>,
-    username: &str,
-    on_event: Channel<ChatEvent>,
-) -> Result<(), String> {
+    Path(username): Path<String>,
+) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
     let user_emotes = {
-        let user_emotes_lock = EMOTES_CACHE.lock().await;
-        if let Some(emotes) = user_emotes_lock.get(username) {
+        let user_emotes_lock = EMOTES_CACHE.lock().unwrap();
+        if let Some(emotes) = user_emotes_lock.get(&username) {
             Arc::new(emotes.clone())
         } else {
             error!("Emotes not found for '{username}'");
@@ -182,68 +151,75 @@ pub async fn join_chat(
         }
     };
 
-    let mut state = state.lock().await;
+    let mut state = CHAT_STATE.lock().await;
+    let state = state.as_mut().unwrap();
 
     let sender = state.sender.clone();
 
+    if state.current_chat.is_some() {
+        let old = state.current_chat.clone().unwrap();
+        if old != username {
+            info!("Leaving '{old}' chat");
+            if let Err(err) = sender.send(format!("PART #{old}")).await {
+                error!("Send: {err}");
+            }
+
+            state.current_chat = None;
+        }
+    }
+
     info!("Joining '{username}' chat");
     if sender.send(format!("JOIN #{username}")).await.is_ok() {
-        state.current_stream = Some(username.to_string());
+        state.current_chat = Some(username.to_string());
     } else {
         error!("Failed to join chat: {username}");
     }
 
-    let mut rx = state.receiver.subscribe();
+    let rx = state.receiver.subscribe();
 
-    drop(state);
+    let stream = BroadcastStream::new(rx).filter_map(move |result| {
+        let user_emotes = user_emotes.clone();
 
-    while let Ok(irc) = rx.recv().await {
-        // Hack, currently there's no way to close this loop after joining another stream/chat.
-        // When a second chat is joined, a PART will always be sent and the loop before it will always receive it.
-        if irc.starts_with("PART") {
-            break;
+        async move {
+            match result {
+                Ok(irc) => {
+                    if let Some(caps) = IRC_CHAT_REG.captures(&irc) {
+                        if caps.len() < 5 {
+                            return None;
+                        }
+                        let color = caps.name("color")?.as_str().to_string();
+                        let display_name = caps.name("display_name")?.as_str().to_string();
+                        let first_msg = caps.name("first_msg")?.as_str() != "0";
+                        let content = caps.name("message")?.as_str().trim_end();
+
+                        if display_name.is_empty() || content.is_empty() {
+                            return None;
+                        }
+
+                        let fragments = parse_chat_fragments(content, &user_emotes);
+                        if fragments.is_empty() {
+                            return None;
+                        }
+
+                        let chat_message = ChatMessage {
+                            color,
+                            name: display_name,
+                            first_msg,
+                            fragments,
+                        };
+
+                        let json = serde_json::to_string(&chat_message).ok()?;
+                        Some(Ok(Event::default().data(json)))
+                    } else {
+                        None
+                    }
+                }
+                Err(_) => None,
+            }
         }
+    });
 
-        // From here its possible to parse all events coming from the chat, but for now we're only interested in messages.
-        let caps = IRC_CHAT_REG.captures(&irc);
-        if caps.is_none() {
-            continue;
-        }
-
-        let Some(caps) = caps else { continue };
-
-        if caps.len() < 5 {
-            continue;
-        }
-
-        let color = caps.name("color").unwrap().as_str().to_string();
-        let display_name = caps.name("display_name").unwrap().as_str().to_string();
-        let first_msg = caps.name("first_msg").unwrap().as_str() != "0";
-
-        let content = caps.name("message").unwrap().as_str().trim_end();
-
-        if display_name.is_empty() || content.is_empty() {
-            continue;
-        }
-
-        let fragments = parse_chat_fragments(content, &user_emotes);
-        if fragments.is_empty() {
-            continue;
-        }
-
-        let chat_message = ChatMessage {
-            color,
-            name: display_name,
-            first_msg,
-            fragments,
-        };
-
-        if let Err(err) = on_event.send(ChatEvent::Message(chat_message)) {
-            error!("Failed to send chat event: {err}");
-        }
-    }
-
-    Ok(())
+    Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
 fn parse_chat_fragments(

@@ -1,14 +1,13 @@
 <script lang="ts" module>
 	import { fly, fade } from 'svelte/transition';
 
-	import { error as logError, info as logInfo } from '@tauri-apps/plugin-log';
+	import { error as logError } from '@tauri-apps/plugin-log';
 
 	let visible = $state(false);
 	let notificationMessage = $state('');
 
 	export function info(message: string) {
 		notificationMessage = message;
-		logInfo(message);
 
 		visible = true;
 
@@ -17,9 +16,10 @@
 		}, 3000);
 	}
 
-	export function error(message: string) {
+	export function error(message: string, error: string) {
 		notificationMessage = message;
-		logError(message);
+
+		logError(`${message}: ${error}`);
 
 		visible = true;
 

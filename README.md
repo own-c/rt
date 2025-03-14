@@ -1,6 +1,6 @@
 # RT (name pending)
 
-A Twitch frontend written in Rust using SvelteKit and Tauri.
+A Twitch frontend written in Rust using Tauri and SvelteKit.
 
 <table>
     <tr>
@@ -29,8 +29,8 @@ A Twitch frontend written in Rust using SvelteKit and Tauri.
 
 - Watch streams in any of the available resolutions.
 - View chat with 7tv and BetterTTV emotes support.
-- WIP ad blocking.
-- Get basic information such as viewer count, stream title, current game, hours streaming.
+- Ad blocking.
+- Get viewer count, stream title, current game, hours streamed.
 - Replace `https` with `rt` in a stream URL to open the app and save the user.
 
 ## Download
@@ -50,7 +50,7 @@ Github Actions builds are available [here](https://github.com/Kyagara/rt/actions
 
 Data is stored in the following locations:
 
-- Windows: `%AppData%/Roaming/com.rt.app`
+- Windows: `%AppData%/com.rt.app`
 - Linux: `~/.config/com.rt.app`
 
 Logs are stored in the following locations:
@@ -63,8 +63,6 @@ Logs are stored in the following locations:
 - Add global Twitch emotes.
 - Add persistent settings (save stream resolution, volume, etc).
 - Try rt on other desktops.
-- Move to structs for gql query and responses.
-- Somehow make proxy work with `invoke`/another method that doesn't require a local server, might require parsing the m3u8 in the frontend.
 - Use Tauri's channels to notify more events, like when the stream has been switched to a backup one and more.
-- Try to reduce as much as possible the amount of requests made to Twitch.
-- Fix `join_chat` errors when hard refreshing the page while in a chat.
+- Put the seek bar at the end when joining a stream, currently it is 20~ seconds behind when first joining.
+- Improve logging.

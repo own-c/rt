@@ -13,19 +13,13 @@ use log::{error, info};
 use regex::Regex;
 use serde::Deserialize;
 use tauri::Url;
-use tauri_plugin_http::reqwest::{header::HeaderValue, Client};
+use tauri_plugin_http::reqwest::header::HeaderValue;
 use tokio::sync::Mutex;
 
-use crate::{api::LOCAL_API, user};
+use crate::{user, LOCAL_API_ADDR, PROXY_HTTP_CLIENT};
 
 lazy_static! {
-    pub static ref PROXY_HTTP_CLIENT: Client = Client::builder()
-        .gzip(true)
-        .use_rustls_tls()
-        .https_only(true)
-        .build()
-        .unwrap();
-    pub static ref USING_BACKUP: AtomicBool = AtomicBool::new(false);
+    static ref USING_BACKUP: AtomicBool = AtomicBool::new(false);
     static ref MAIN_STREAM_URL: Mutex<Option<String>> = Mutex::new(None);
     static ref URL_REGEX: Regex = Regex::new(r"^(https?://[^\s]+)").unwrap();
 }
@@ -102,6 +96,7 @@ pub async fn proxy_stream(Query(query): Query<ProxyStreamQuery>) -> impl IntoRes
                 }
             }
         }
+
         Body::from(playlist)
     } else {
         Body::from(response.bytes().await.unwrap_or(Bytes::new()))
@@ -154,7 +149,7 @@ fn process_m3u8(username: &str, base_url: &str, playlist: &str) -> (bool, String
             if let Some(base) = &base_url {
                 if let Ok(abs_url) = base.join(line) {
                     result_lines.push(format!(
-                        "{LOCAL_API}/proxy?username={username}&url={}",
+                        "http://{LOCAL_API_ADDR}/proxy?username={username}&url={}",
                         urlencoding::encode(abs_url.as_str())
                     ));
 
@@ -199,17 +194,21 @@ async fn fetch_main_stream(username: &str) -> Result<String> {
         info!("Ads still present in main stream. Using backup stream.");
         fetch_backup_stream(username).await
     } else {
-        info!("Ads cleared in main stream. Switching back.");
         USING_BACKUP.store(false, Ordering::SeqCst);
         Ok(processed_playlist)
     }
 }
 
 async fn fetch_backup_stream(username: &str) -> Result<String> {
-    let stream = user::fetch_stream(username, true).await?;
+    let url = match user::fetch_stream_playback(username, true).await {
+        Ok(url) => url,
+        Err(err) => {
+            return Err(anyhow!("Failed to fetch backup stream: {err}"));
+        }
+    };
 
-    let backup_url = stream.url.replace(
-        format!("{LOCAL_API}/proxy?username={username}&url=").as_str(),
+    let backup_url = url.replace(
+        format!("http://{LOCAL_API_ADDR}/proxy?username={username}&url=").as_str(),
         "",
     );
 

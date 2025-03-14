@@ -1,367 +1,298 @@
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
-use anyhow::{anyhow, Result};
-use log::{error, info};
+use anyhow::Result;
+use log::error;
 use serde::Serialize;
-use serde_json::json;
-use tauri::Url;
+use tauri::{AppHandle, Url};
+use tauri_plugin_store::StoreExt;
 
 use crate::{
-    api::{self, send_gql, HTTP_CLIENT, LOCAL_API},
-    emote, utils,
+    emote::{self, Emote, EMOTES_CACHE, TWITCH_EMOTES_CDN},
+    queries::{GraphQLQuery, GraphQLResponse, UseLiveQuery, UseLiveResponse},
+    utils, LOCAL_API_ADDR,
 };
 
 const USHER_API: &str = "https://usher.ttvnw.net/api/channel/hls";
-const BOXART_CDN: &str = "https://static-cdn.jtvnw.net/ttv-boxart";
+pub const BOXART_CDN: &str = "https://static-cdn.jtvnw.net/ttv-boxart";
 
-const USELIVE_QUERY_HASH: &str = "639d5f11bfb8bf3053b424d9ef650d04c4ebb7d94711d644afb08fe9a0fad5d9";
-const COMSCORE_STREAMING_QUERY_HASH: &str =
-    "e1edae8122517d013405f237ffcc124515dc6ded82480a88daef69c83b53ac01";
-const STREAM_METADATA_QUERY_HASH: &str =
-    "b57f9b910f8cd1a4659d894fe7550ccc81ec9052c01e438b290fd66a040b9b93";
-const USE_VIEW_COUNT_QUERY_HASH: &str =
-    "95e6bd7acfbb2f220c17e387805141b77b43b18e5b27b4f702713e9ddbe6b907";
+#[derive(Serialize, Debug)]
+pub struct LiveNow {
+    username: String,
+    started_at: String,
+}
 
 #[tauri::command]
-pub async fn get_live_now(usernames: Vec<String>) -> Result<Vec<String>, String> {
+pub async fn fetch_live_now(usernames: Vec<String>) -> Result<HashMap<String, LiveNow>, String> {
     if usernames.is_empty() {
         return Err(String::from("No usernames provided"));
     }
 
-    let mut body = json!([]);
-    let arr = body.as_array_mut().unwrap();
+    let mut query: Vec<UseLiveQuery> = Vec::new();
 
     for username in usernames {
         if username.is_empty() {
             continue;
         }
 
-        arr.push(json!({
-            "operationName": "UseLive",
-            "variables": {"channelLogin": username},
-            "extensions": {
-                "persistedQuery": {
-                    "version": 1,
-                    "sha256Hash": USELIVE_QUERY_HASH
-                }
-            }
-        }));
+        query.push(UseLiveQuery::new(&username));
     }
 
-    let uselive_query_data = match api::send_gql(body).await {
+    let response: Vec<UseLiveResponse> = match utils::send_query(query).await {
         Ok(data) => data,
         Err(err) => {
             return Err(format!("Failed to fetch UseLive: {err}"));
         }
     };
 
-    let Some(arr) = uselive_query_data.as_array() else {
-        return Err(String::from("UseLive data was not an array"));
-    };
+    let mut live_now: HashMap<String, LiveNow> = HashMap::new();
 
-    let mut live = Vec::new();
-
-    for obj in arr {
-        let username = match obj.pointer("/data/user") {
-            Some(val) => {
-                if val.is_null() {
-                    continue;
-                }
-
-                match val.get("stream") {
-                    Some(val) => {
-                        if val.is_null() {
-                            continue;
-                        }
-                    }
-                    None => continue,
-                };
-
-                let Some(login) = val.get("login") else {
-                    continue;
-                };
-
-                login.as_str().unwrap_or("")
-            }
-            None => {
-                continue;
-            }
-        };
-
-        if username.is_empty() {
+    for obj in response {
+        if obj.data.user.stream.is_none() {
             continue;
         }
 
-        live.push(username.to_string());
-    }
+        let stream = obj.data.user.stream.unwrap();
+        let username = obj.data.user.login;
 
-    info!("Live now: {live:?}");
-    Ok(live)
-}
-
-#[derive(Serialize, Debug)]
-pub struct User {
-    username: String,
-    live: bool,
-    avatar: String,
-    url: String,
-}
-
-#[tauri::command]
-pub async fn get_user(username: &str) -> Result<User, String> {
-    if username.is_empty() {
-        return Err(String::from("No username provided"));
-    }
-
-    let query = json!({
-        "operationName": "ComscoreStreamingQuery",
-        "variables": {
-            "channel": username,
-            "clipSlug": "",
-            "isClip": false,
-            "isLive": true,
-            "isVodOrCollection": false,
-            "vodID": ""
-        },
-        "extensions": {
-            "persistedQuery": {
-                "version": 1,
-                "sha256Hash": COMSCORE_STREAMING_QUERY_HASH
-            }
-        }
-    });
-
-    let response = match api::send_gql(query).await {
-        Ok(data) => data,
-        Err(err) => {
-            return Err(format!("Failed to fetch ComscoreStreamingQuery: {err}"));
-        }
-    };
-
-    let Some(user) = response.pointer("/data/user") else {
-        return Err(String::from("Missing user in streaming data"));
-    };
-
-    let is_streaming = match utils::extract_json(user, "stream") {
-        Ok(stream) => !stream.is_null(),
-        Err(err) => {
-            error!("Failed to extract stream from user: {err}");
-            false
-        }
-    };
-
-    // Checking here just to avoid a request for playback tokens if the user isn't streaming
-    if !is_streaming {
-        let user = User {
-            username: username.to_string(),
-            avatar: String::default(),
-            live: false,
-            url: String::default(),
+        let live = LiveNow {
+            username: username.clone(),
+            started_at: stream.created_at,
         };
 
-        info!("Stream: {{ username: \"{username}\", live: \"false\" }}");
-
-        return Ok(user);
+        live_now.insert(username, live);
     }
 
-    let stream = match fetch_stream(username, false).await {
-        Ok(stream) => stream,
+    Ok(live_now)
+}
+
+#[derive(Serialize)]
+pub struct User {
+    id: String,
+    username: String,
+    avatar: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stream: Option<Stream>,
+}
+
+#[derive(Serialize, Default)]
+pub struct Stream {
+    title: String,
+    started_at: String,
+    game: String,
+    boxart: String,
+    view_count: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    url: Option<String>,
+}
+
+/// Returns up to date information about a user, including third party emotes. Emotes are saved to the store here.
+#[tauri::command]
+pub async fn fetch_full_user(app: AppHandle, username: &str) -> Result<User, String> {
+    if username.is_empty() {
+        return Err(String::from("Username cannot be empty"));
+    }
+
+    let query = GraphQLQuery::full_user(username);
+
+    let response: GraphQLResponse = match utils::send_query(query).await {
+        Ok(response) => response,
         Err(err) => {
-            return Err(format!("Failed to fetch stream: {err}"));
+            return Err(format!("Failed to fetch user '{username}': {err}"));
         }
     };
 
-    if let Err(err) = emote::get_user_emotes(username, &stream.user_id).await {
-        error!("Failed to get emotes for '{username}': {err}");
-    }
-
-    let user = User {
-        username: username.to_string(),
-        avatar: stream.avatar,
-        live: true,
-        url: stream.url,
+    let Some(user) = response.data.user else {
+        return Err(format!("User '{username}' not found"));
     };
 
-    info!("Stream: {{ username: \"{username}\", live: \"true\" }}");
+    // User is streaming, so fetch the stream information
+    let stream = match user.stream {
+        Some(stream) => {
+            let (game_id, game_name) = if let Some(game) = stream.game {
+                (game.id, game.name)
+            } else {
+                (String::new(), String::new())
+            };
+
+            let boxart = utils::fetch_game_boxart(game_id).await;
+
+            let view_count = stream.viewers_count.to_string();
+
+            let stream = Stream {
+                title: stream.title,
+                started_at: stream.created_at,
+                game: game_name,
+                view_count,
+                boxart,
+                url: None,
+            };
+
+            Some(stream)
+        }
+        None => None,
+    };
+
+    let mut user_emotes: HashMap<String, Emote> = HashMap::new();
+    for product in user.subscription_products.unwrap() {
+        for emote in product.emotes {
+            let name = emote.token;
+            let url = format!("{TWITCH_EMOTES_CDN}/{}/default/dark/1.0", emote.id);
+
+            let emote = Emote {
+                name: name.clone(),
+                url,
+                width: 28,
+                height: 28,
+            };
+
+            user_emotes.insert(name, emote);
+        }
+    }
+
+    let user_emotes_store = app.store("user_emotes.json").unwrap();
+    user_emotes_store.set(username, serde_json::to_value(&user_emotes).unwrap());
+
+    let user_id = user.id.unwrap();
+
+    let seventv_emotes = match emote::fetch_7tv_emotes(&user_id).await {
+        Ok(emotes) => emotes,
+        Err(err) => {
+            error!("Failed to fetch 7tv emotes: {err}");
+            HashMap::new()
+        }
+    };
+
+    let seventv_emotes_store = app.store("seventv_emotes.json").unwrap();
+    seventv_emotes_store.set(username, serde_json::to_value(&seventv_emotes).unwrap());
+
+    let bettertv_emotes = match emote::fetch_bettertv_emotes(&user_id).await {
+        Ok(emotes) => emotes,
+        Err(err) => {
+            error!("Failed to fetch bettertv emotes: {err}");
+            HashMap::new()
+        }
+    };
+
+    let bettertv_emotes_store = app.store("bettertv_emotes.json").unwrap();
+    bettertv_emotes_store.set(username, serde_json::to_value(&bettertv_emotes).unwrap());
+
+    user_emotes.extend(seventv_emotes);
+    user_emotes.extend(bettertv_emotes);
+
+    EMOTES_CACHE
+        .lock()
+        .unwrap()
+        .insert(username.to_string(), user_emotes);
+
+    let user = User {
+        id: user_id,
+        username: username.to_string(),
+        avatar: user.profile_image_url.unwrap(),
+        stream,
+    };
 
     Ok(user)
 }
 
-#[derive(Serialize)]
-pub struct StreamInfo {
-    title: String,
-    started_at: String,
-    game: String,
-    box_art: String,
-    view_count: u64,
-}
-
 #[tauri::command]
-pub async fn get_stream_info(username: &str) -> Result<StreamInfo, String> {
-    let query = json!([{
-      "operationName": "StreamMetadata",
-      "variables": {
-        "channelLogin": username,
-        "includeIsDJ": true
-      },
-      "extensions": {
-        "persistedQuery": {
-          "version": 1,
-          "sha256Hash": STREAM_METADATA_QUERY_HASH
-        }
-      }
-    },
-    {
-        "operationName": "UseViewCount",
-        "variables": {
-          "channelLogin": username
-        },
-        "extensions": {
-          "persistedQuery": {
-            "version": 1,
-            "sha256Hash": USE_VIEW_COUNT_QUERY_HASH
-          }
-        }
-    }]);
-
-    let response = match send_gql(query).await {
-        Ok(response) => response,
-        Err(err) => return Err(format!("Failed to get stream info: {err}")),
-    };
-
-    let Some(response) = response.as_array() else {
-        return Err(String::from("Stream info response was not an array."));
-    };
-
-    let info = &response[0];
-
-    let view_count = response[1]
-        .pointer("/data/user/stream/viewersCount")
-        .unwrap()
-        .as_u64()
-        .unwrap_or(0);
-
-    let title = info
-        .pointer("/data/user/lastBroadcast/title")
-        .unwrap()
-        .to_string();
-
-    let started_at = info
-        .pointer("/data/user/stream/createdAt")
-        .unwrap()
-        .to_string();
-
-    let game = info.pointer("/data/user/stream/game").unwrap();
-
-    let game_id = game.get("id").unwrap().as_str().unwrap();
-    let game_name = game.get("name").unwrap().as_str().unwrap().to_string();
-
-    let mut box_art = "https://static-cdn.jtvnw.net/ttv-static/404_boxart-144x192.jpg".to_string();
-
-    // Twitch usually has an updated box art in URLs without the _IGDB tag, try to use it if it exists
-    match HTTP_CLIENT
-        .get(format!("{BOXART_CDN}/{game_id}-144x192.jpg"))
-        .send()
-        .await
-    {
-        Ok(response) => {
-            if response.status().is_success() {
-                box_art = format!("{BOXART_CDN}/{game_id}-144x192.jpg").to_string();
-            } else {
-                box_art = format!("{BOXART_CDN}/{game_id}_IGDB-144x192.jpg").to_string();
-            };
-        }
-        Err(err) => {
-            error!("Failed to fetch box art: {err}");
-        }
+pub async fn fetch_stream_info(username: &str, joining_stream: bool) -> Result<Stream, String> {
+    if username.is_empty() {
+        return Err(String::from("Username cannot be empty"));
     }
 
-    let stream_info = StreamInfo {
+    let query = GraphQLQuery::stream_query(username, joining_stream);
+
+    let response: GraphQLResponse = match utils::send_query(query).await {
+        Ok(response) => response,
+        Err(err) => return Err(format!("Failed to fetch stream info: {err}")),
+    };
+
+    let Some(user) = response.data.user else {
+        return Err(format!("User '{username}' not found"));
+    };
+
+    let Some(stream) = user.stream else {
+        return Ok(Stream::default());
+    };
+
+    let title = stream.title;
+    let started_at = stream.created_at;
+    let view_count = stream.viewers_count.to_string();
+
+    let (game_id, game_name) = if let Some(game) = stream.game {
+        (game.id, game.name)
+    } else {
+        (String::new(), String::new())
+    };
+
+    let boxart = utils::fetch_game_boxart(game_id).await;
+
+    let url = if joining_stream {
+        let Some(stream_playback) = response.data.stream_playback_access_token else {
+            return Err(format!(
+                "No streamPlaybackAccessToken for '{username}' found"
+            ));
+        };
+
+        let signature = stream_playback.signature;
+        let value = stream_playback.value;
+
+        match playlist_url(username, false, &signature, &value) {
+            Ok(url) => Some(url),
+            Err(err) => {
+                error!("Failed to create playlist URL: {err}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    let stream_info = Stream {
         title,
         started_at,
         game: game_name,
+        boxart,
         view_count,
-        box_art: box_art.to_string(),
+        url,
     };
 
     Ok(stream_info)
 }
 
-pub struct PlaybackResponse {
-    user_id: String,
-    avatar: String,
-    pub url: String,
-}
-
-pub async fn fetch_stream(username: &str, backup: bool) -> Result<PlaybackResponse> {
+pub async fn fetch_stream_playback(username: &str, backup: bool) -> Result<String, String> {
     if username.is_empty() {
-        return Err(anyhow!("No username provided"));
+        return Err(String::from("No username provided"));
     }
 
-    let platform = if backup { "ios" } else { "web" };
-    let player_type = if backup { "autoplay" } else { "site" };
+    let query = GraphQLQuery::playback_query(username, backup);
 
-    let playback_query = format!(
-        r#"{{
-            user(login: "{username}") {{
-                id
-                profileImageURL(width: 50)
-            }}
-            streamPlaybackAccessToken(
-                channelName: "{username}",
-                params: {{
-                    platform: "{platform}",
-                    playerBackend: "mediaplayer",
-                    playerType: "{player_type}",
-                }}
-            )
-            {{
-                value
-                signature
-            }}
-        }}"#
-    );
-
-    let query = json!({"query": playback_query.replace(' ',"")});
-
-    let response = match api::send_gql(query).await {
-        Ok(data) => data,
+    let response: GraphQLResponse = match utils::send_query(query).await {
+        Ok(response) => response,
         Err(err) => {
-            return Err(anyhow!("Failed to fetch ComscoreStreamingQuery: {err}"));
+            return Err(format!("Failed to fetch stream info: {err}"));
         }
     };
 
-    let access_token = utils::extract_json(&response, "data")?;
-    let access_token_user = utils::extract_json(&access_token, "user")?;
+    let Some(stream_playback) = response.data.stream_playback_access_token else {
+        return Err(String::from("No stream playback access token found"));
+    };
 
-    let user_id = utils::string_from_value(access_token_user.get("id"));
+    let signature = stream_playback.signature;
+    let value = stream_playback.value;
 
-    let avatar = utils::string_from_value(access_token_user.get("profileImageURL"));
-    let tokens = utils::extract_json(&access_token, "streamPlaybackAccessToken")?;
-
-    let url = match playlist_url(
-        username,
-        backup,
-        &utils::string_from_value(tokens.get("signature")),
-        &utils::string_from_value(tokens.get("value")),
-    ) {
-        Ok(url) => url.to_string(),
+    let url = match playlist_url(username, backup, &signature, &value) {
+        Ok(url) => url,
         Err(err) => {
-            return Err(anyhow!("Failed to create playlist URL: {err}"));
+            return Err(format!("Failed to generate playlist URL: {err}"));
         }
     };
 
-    let stream = PlaybackResponse {
-        user_id,
-        avatar,
-        url,
-    };
-
-    Ok(stream)
+    Ok(url)
 }
 
 fn playlist_url(username: &str, backup: bool, signature: &str, token: &str) -> Result<String> {
-    let mut url = Url::from_str(&format!("{LOCAL_API}/proxy"))?;
+    let mut url = Url::from_str(&format!("http://{LOCAL_API_ADDR}/proxy"))?;
     let mut to_proxy = format!("{USHER_API}/{username}.m3u8");
 
     let random_number = utils::random_number(1_000_000, 10_000_000);

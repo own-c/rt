@@ -2,14 +2,10 @@
 	import { onMount } from 'svelte';
 
 	import { openUrl } from '@tauri-apps/plugin-opener';
-	import { Channel, invoke } from '@tauri-apps/api/core';
 
 	import SimpleBar from 'simplebar';
 
-	import type { ChatMessage } from '$lib/Types';
-	import type { ChatEvent } from '$lib/Events';
-
-	let { username, isLive } = $props();
+	import { watching } from '$lib/Stores.svelte';
 
 	let messages: ChatMessage[] = $state([]);
 	let tempMessages: ChatMessage[] = $state([]);
@@ -60,7 +56,7 @@
 	});
 
 	onMount(() => {
-		if (!username || !isLive) return;
+		if (!watching.username || !watching.url) return;
 
 		simpleBarInstance = new SimpleBar(chatContainer).getScrollElement()!;
 		simpleBarInstance.addEventListener('scroll', handleScroll);
@@ -70,12 +66,14 @@
 		pendingMessages = [];
 		updateScheduled = false;
 
-		const onEvent = new Channel<ChatEvent>();
+		const sse = new EventSource(`http://127.0.0.1:3030/chat/${watching.username}`);
 
 		let id = 0;
 
-		onEvent.onmessage = ({ event, data }) => {
-			if (event === 'message' && data) {
+		sse.onmessage = (event: MessageEvent<string>) => {
+			if (event.data) {
+				const data = JSON.parse(event.data);
+
 				data.id = id++;
 
 				if (!autoScroll) {
@@ -101,10 +99,8 @@
 			}
 		};
 
-		(async () => await invoke('join_chat', { username, onEvent }))();
-
 		return () => {
-			(async () => await invoke('leave_chat', { username }))();
+			sse.close();
 		};
 	});
 </script>
@@ -120,7 +116,7 @@
 	<div
 		data-simplebar
 		bind:this={chatContainer}
-		class="h-full w-full bg-neutral-900 overflow-y-auto"
+		class="h-[calc(100vh-4rem)] w-full bg-neutral-900 overflow-y-auto"
 	>
 		{#each messages as message (message.id)}
 			<div

@@ -5,16 +5,15 @@
 	import { openUrl } from '@tauri-apps/plugin-opener';
 	import { invoke } from '@tauri-apps/api/core';
 
-	import { watching } from '$lib/logic/Stream.svelte';
-	import type { StreamInfo } from '$lib/Types';
+	import { error } from './Notification.svelte';
+
+	import { updateWatching, watching } from '$lib/Stores.svelte';
 
 	const appWindow = getCurrentWindow();
 	let maximized = $state(false);
 
 	let showInfo = $state(false);
-	let loadingInfo = $state(true);
-	let streamInfo = $state() as StreamInfo;
-	let lastUpdate = $state() as Date;
+	let loadingInfo = $state(false);
 
 	async function openInBrowser() {
 		await openUrl(`https://www.twitch.tv/${watching.username}`);
@@ -24,33 +23,22 @@
 		showInfo = true;
 
 		const now = new Date();
+		const elapsed = now.getTime() - watching.last_update.getTime();
+		if (elapsed < 60000) return;
 
-		if (lastUpdate) {
-			const elapsed = now.getTime() - lastUpdate.getTime();
-			if (elapsed < 60000) return;
-		}
-
-		lastUpdate = now;
 		loadingInfo = true;
 
-		const data: StreamInfo = await invoke('get_stream_info', { username: watching.username });
+		await invoke<Stream>('fetch_stream_info', {
+			username: watching.username,
+			joiningStream: false
+		})
+			.then((data) => {
+				updateWatching(watching.username, data);
+			})
+			.catch((err) => {
+				error(`Error fetching stream info`, err);
+			});
 
-		const startedAt = JSON.parse(data.started_at);
-		const startedAtDate = new Date(startedAt);
-
-		const diff = now.getTime() - startedAtDate.getTime();
-		const totalSeconds = Math.floor(diff / 1000);
-
-		const hours = Math.floor(totalSeconds / 3600);
-		const minutes = Math.floor((totalSeconds % 3600) / 60);
-		const seconds = totalSeconds % 60;
-
-		const formattedMinutes = minutes.toString().padStart(2, '0');
-		const formattedSeconds = seconds.toString().padStart(2, '0');
-
-		data.started_at = `${hours}:${formattedMinutes}:${formattedSeconds}`;
-
-		streamInfo = data;
 		loadingInfo = false;
 	}
 
@@ -70,15 +58,11 @@
 
 	{#if watching.username}
 		<div class="flex flex-1 justify-center gap-2">
-			<button
-				title="Open in browser"
-				class="text-lg font-bold underline hover:text-blue-300 cursor-pointer"
-				onclick={openInBrowser}
-			>
+			<button class="text-lg font-bold">
 				{watching.username}
 			</button>
 
-			{#if watching.live}
+			{#if watching.url}
 				<div
 					role="tooltip"
 					class="px-2 hover:bg-neutral-700 flex items-center"
@@ -106,27 +90,31 @@
 										class="relative flex gap-2 w-full h-full bg-neutral-800 shadow-lg rounded-md border border-white/20"
 									>
 										<img
-											src={streamInfo.box_art}
+											src={watching.boxart}
 											alt="Game Boxart"
 											class="object-cover aspect-ratio h-full"
 										/>
 
 										<div class="flex flex-col py-1 mr-2 text-sm">
-											<div class="font-bold">
-												{streamInfo.title}
-											</div>
-
-											<div>
-												{streamInfo.started_at} - {streamInfo.view_count} viewers
-											</div>
+											<button
+												title="Open in browser"
+												class="font-bold underline hover:text-blue-300 cursor-pointer"
+												onclick={openInBrowser}
+											>
+												{watching.title}
+											</button>
 
 											<div class="flex-1"></div>
 
+											<div>
+												{watching.started_at} - {watching.view_count} viewers
+											</div>
+
 											<p
-												title={streamInfo.game}
+												title={watching.game}
 												class="italic overflow-hidden text-ellipsis truncate"
 											>
-												{streamInfo.game}
+												{watching.game}
 											</p>
 										</div>
 									</div>

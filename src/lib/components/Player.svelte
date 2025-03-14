@@ -1,10 +1,10 @@
 <script lang="ts">
 	import 'vidstack/bundle';
 
-	let { isLive, url } = $props();
+	import { watching } from '$lib/Stores.svelte';
 </script>
 
-{#if isLive}
+{#if watching.url}
 	<media-player
 		autoPlay={true}
 		streamType="on-demand"
@@ -12,7 +12,7 @@
 		style="--plyr-border-radius: 0px;"
 	>
 		<media-provider>
-			<source src={url} type="application/x-mpegurl" />
+			<source src={watching.url} type="application/x-mpegurl" />
 		</media-provider>
 
 		<media-plyr-layout
@@ -29,12 +29,6 @@
 			]}
 		></media-plyr-layout>
 	</media-player>
-{:else}
-	<div class="flex flex-col items-center justify-center h-full w-full">
-		<div class="text-center">
-			<h1 class="text-4xl font-bold">No stream</h1>
-		</div>
-	</div>
 {/if}
 
 <style>

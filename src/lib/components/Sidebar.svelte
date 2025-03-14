@@ -1,10 +1,20 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 
-	import { info } from './Notification.svelte';
+	import { invoke } from '@tauri-apps/api/core';
 
-	import { refreshUsers, removeUser, usersMap } from '$lib/logic/Users.svelte';
-	import { fetchAndSetUser, watching } from '$lib/logic/Stream.svelte';
+	import { error, info } from './Notification.svelte';
+
+	import {
+		live_now,
+		users,
+		watching,
+		refreshUsers,
+		removeUser,
+		updateWatching,
+		updateUser,
+		parseTime
+	} from '$lib/Stores.svelte';
 
 	let loading = $state(false);
 
@@ -46,7 +56,7 @@
 		}
 	}
 
-	async function refreshUsersAndUpdate() {
+	async function handleRefreshUsers() {
 		loading = true;
 		await refreshUsers();
 		loading = false;
@@ -54,23 +64,62 @@
 		info('Refreshed users');
 	}
 
+	function getStreamingFor(username: string) {
+		const liveNow = live_now[username];
+		if (!liveNow) return username;
+
+		const diff = new Date().getTime() - new Date(liveNow.started_at).getTime();
+		const totalSeconds = Math.floor(diff / 1000);
+		const time = parseTime(totalSeconds);
+
+		return `${username} - ${time}`;
+	}
+
 	async function changeStream(username: string) {
 		loading = true;
-		await fetchAndSetUser(username);
+
+		await invoke<Stream>('fetch_stream_info', {
+			username: username,
+			joiningStream: true
+		})
+			.then((data) => {
+				if (!data.url) {
+					info(`Stream not found`);
+					return;
+				}
+
+				updateWatching(username, data);
+			})
+			.catch((err) => {
+				error(`Error fetching stream info`, err);
+			});
+
 		loading = false;
 	}
 
-	async function addNewUser(username: string) {
+	async function handleAddUser(username: string) {
 		showInput = false;
 		loading = true;
-		await fetchAndSetUser(username);
-		loading = false;
 
+		await updateUser(username, true);
+
+		loading = false;
 		info(`Added '${username}'`);
 	}
 
-	async function remove() {
+	async function handleUpdateUser() {
+		loading = true;
 		showContextMenu = false;
+
+		await updateUser(rightClickedUser, false);
+
+		loading = false;
+		info(`Updated '${rightClickedUser}'`);
+	}
+
+	async function handleRemoveUser() {
+		showContextMenu = false;
+
 		await removeUser(rightClickedUser);
 
 		info(`Removed '${rightClickedUser}'`);
@@ -102,7 +151,7 @@
 			aria-label="Refresh users"
 			title="Refresh users"
 			disabled={loading}
-			onclick={async () => await refreshUsersAndUpdate()}
+			onclick={async () => await handleRefreshUsers()}
 			class="flex flex-col items-center cursor-pointer w-full py-2 {loading
 				? 'opacity-50'
 				: 'hover:bg-neutral-600'}"
@@ -119,20 +168,20 @@
 	<hr class="border-gray-700 w-full" />
 
 	<div data-simplebar class="w-full h-full overflow-y-auto pb-8">
-		{#each Object.values(usersMap).sort((a, b) => {
-			const aLive = a.live ? 1 : 0;
-			const bLive = b.live ? 1 : 0;
+		{#each Object.values(users).sort((a, b) => {
+			const aLive = live_now[a.username] ? 1 : 0;
+			const bLive = live_now[b.username] ? 1 : 0;
 			return bLive - aLive;
 		}) as user, index (index)}
 			<button
 				id={user.username}
-				title={user.username}
-				disabled={!usersMap ||
-					Object.keys(usersMap).length === 0 ||
+				title={live_now[user.username] ? getStreamingFor(user.username) : user.username}
+				disabled={!users ||
+					Object.keys(users).length === 0 ||
 					loading ||
 					user.username === watching.username}
-				class="flex flex-col items-center w-full py-1 {!usersMap ||
-				Object.keys(usersMap).length === 0 ||
+				class="flex flex-col items-center w-full py-1 {!users ||
+				Object.keys(users).length === 0 ||
 				loading ||
 				user.username === watching.username
 					? 'opacity-50'
@@ -165,7 +214,7 @@
 						/>
 					{/if}
 
-					{#if user.live}
+					{#if live_now[user.username]}
 						<span
 							class="absolute top-0 right-0 h-3 w-3 bg-red-600 rounded-full border-1 border-black shadow-md"
 						></span>
@@ -177,7 +226,7 @@
 </aside>
 
 {#if showInput}
-	<form onsubmit={async () => await addNewUser(username)}>
+	<form onsubmit={async () => await handleAddUser(username)}>
 		<input
 			bind:this={inputEl}
 			bind:value={username}
@@ -196,8 +245,12 @@
 		class="flex flex-col gap-1 absolute shadow-lg rounded z-50 bg-neutral-700 py-1"
 		style="top: {rightClickPos.y}px; left: {rightClickPos.x + 10}px;"
 	>
-		<button class="hover:bg-neutral-500 px-2 cursor-pointer w-full" onclick={remove}>
-			Remove {rightClickedUser}
+		<button class="hover:bg-neutral-500 px-2 cursor-pointer w-full" onclick={handleUpdateUser}>
+			Update
+		</button>
+
+		<button class="hover:bg-red-500 px-2 cursor-pointer w-full" onclick={handleRemoveUser}>
+			Remove
 		</button>
 	</div>
 {/if}
