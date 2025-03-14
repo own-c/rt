@@ -47,7 +47,7 @@ jobs:
           workspaces: "./src-tauri -> target"
 
       - name: Install cargo-xwin
-        run: cargo install --locked cargo-xwin --xwin-cache-dir ~/.xwin
+        run: cargo install --locked cargo-xwin
 
       - name: Run clippy
         working-directory: src-tauri
@@ -57,7 +57,7 @@ jobs:
         run: npm run tauri build
 
       - name: Build for Windows
-        run: npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc
+        run: npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc -- --xwin-cache-dir ~/.xwin
 
       - name: Create bundles folder and move artifacts
         run: |
