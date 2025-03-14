@@ -260,6 +260,7 @@ pub async fn fetch_stream_info(username: &str, joining_stream: bool) -> Result<S
     Ok(stream_info)
 }
 
+#[tauri::command]
 pub async fn fetch_stream_playback(username: &str, backup: bool) -> Result<String, String> {
     if username.is_empty() {
         return Err(String::from("No username provided"));

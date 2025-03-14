@@ -25,11 +25,11 @@ let userStore: Store;
 
 export async function initStores() {
 	userStore = await load('users.json', { autoSave: false });
-	const data = await userStore.get<Record<string, User>>('users');
+	const usersData = await userStore.get<Record<string, User>>('users');
 
-	if (!data) return;
+	if (!usersData) return;
 
-	for (const [key, value] of Object.entries(data)) {
+	for (const [key, value] of Object.entries(usersData)) {
 		users[key] = value;
 	}
 }

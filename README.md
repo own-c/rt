@@ -61,8 +61,10 @@ Logs are stored in the following locations:
 ## TODO
 
 - Add global Twitch emotes.
-- Add persistent settings (save stream resolution, volume, etc).
 - Try rt on other desktops.
+- Maybe add back refreshing of users when opening the app.
 - Put the seek bar at the end when joining a stream, currently it is 20~ seconds behind when first joining.
+- Fix minor issue of chat still having some messages when switching streams, more noticeable when switching from a stream with very active chat.
+- Fix opening the app via URL, the onOpenUrl is not firing, only when the app is already open.
 - Fix weird timeout of 10s when switching streams.
 - Improve logging.

@@ -4,8 +4,9 @@
 	import { watching } from '$lib/Stores.svelte';
 </script>
 
-{#if watching.url}
+{#key watching.url}
 	<media-player
+		storage="player-settings"
 		autoPlay={true}
 		streamType="on-demand"
 		class="max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)]"
@@ -16,6 +17,7 @@
 		</media-provider>
 
 		<media-plyr-layout
+			displayDuration={true}
 			controls={[
 				'play-large',
 				'play',
@@ -24,12 +26,11 @@
 				'mute+volume',
 				'settings',
 				'pip',
-				'airplay',
 				'fullscreen'
 			]}
 		></media-plyr-layout>
 	</media-player>
-{/if}
+{/key}
 
 <style>
 	:global(media-player video) {

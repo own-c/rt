@@ -85,7 +85,7 @@
 
 						{#if showInfo}
 							{#if !loadingInfo}
-								<div class="absolute z-50 right-0 top-6 w-96 h-32" style="user-select: text;">
+								<div class="absolute z-50 right-0 top-6 w-128 h-32" style="user-select: text;">
 									<div
 										class="relative flex gap-2 w-full h-full bg-neutral-800 shadow-lg rounded-md border border-white/20"
 									>
@@ -107,7 +107,11 @@
 											<div class="flex-1"></div>
 
 											<div>
-												{watching.started_at} - {watching.view_count} viewers
+												{watching.started_at}
+											</div>
+
+											<div>
+												{watching.view_count} watching
 											</div>
 
 											<p

@@ -23,14 +23,15 @@
 				info('No ads detected, switching main stream.');
 				break;
 			case 'backup':
-				info('Found Ads, switching to backup stream.');
+				info('Found ads, switching to backup stream.');
 				break;
 		}
 	});
 
 	let showChat = $state(false);
 	let movingMouse = $state(false);
-	let timer = $state(0);
+
+	let movingMouseTimer = $state(0);
 
 	function toggleChat() {
 		showChat = !showChat;
@@ -39,9 +40,9 @@
 	function handleMousemove() {
 		movingMouse = true;
 
-		clearTimeout(timer);
+		clearTimeout(movingMouseTimer);
 
-		timer = setTimeout(() => {
+		movingMouseTimer = setTimeout(() => {
 			movingMouse = false;
 		}, 2000);
 	}

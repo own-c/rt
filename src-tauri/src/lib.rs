@@ -117,6 +117,7 @@ pub fn run() {
             user::fetch_live_now,
             user::fetch_full_user,
             user::fetch_stream_info,
+            user::fetch_stream_playback,
         ])
         .run(tauri::generate_context!())
         .expect("while running tauri application");
