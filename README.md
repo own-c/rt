@@ -64,5 +64,6 @@ Logs are stored in the following locations:
 - Maybe add back users refreshing when opening the app.
 - Put the seek bar at the end when joining a stream, currently it is 20~ seconds behind when first joining.
 - Fix minor issue of chat still having some messages when switching streams, more noticeable when switching from a stream with very active chat.
+- Maybe move to Sqlite for saving emotes? So when joining a chat do a query for a users emote and build a hashmap like normally.
 - Fix opening the app via URL, the onOpenUrl is only firing when the app is already open.
 - Improve logging.

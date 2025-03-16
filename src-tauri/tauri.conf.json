@@ -15,10 +15,9 @@
         "title": "rt",
         "width": 1280,
         "height": 720,
-        "focus": true,
+        "theme": "Dark",
         "shadow": false,
-        "decorations": false,
-        "theme": "Dark"
+        "decorations": false
       }
     ],
     "security": {

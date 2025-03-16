@@ -106,7 +106,7 @@ pub async fn proxy_stream(Query(query): Query<ProxyStreamQuery>) -> impl IntoRes
                     playlist.clear();
                 }
             }
-        } else {
+        } else if using_backup {
             // If no ad is detected but we are still in backup, switch back to the main stream
             info!("No ad detected. Switching back to main stream.");
 
