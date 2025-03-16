@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::Infallible, sync::Arc, time::Duration};
+use std::{collections::HashMap, convert::Infallible, time::Duration};
 
 use crate::{
     emote::{Emote, EMOTES_CACHE},
@@ -142,26 +142,23 @@ pub async fn join_chat(
     Path(username): Path<String>,
 ) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
     let user_emotes = {
-        let user_emotes_lock = EMOTES_CACHE.lock().unwrap();
-        if let Some(emotes) = user_emotes_lock.get(&username) {
-            Arc::new(emotes.clone())
-        } else {
-            error!("Emotes not found for '{username}'");
-            Arc::new(HashMap::default())
-        }
+        let cache = EMOTES_CACHE.lock().unwrap();
+
+        cache.get(&username).cloned().unwrap_or_else(|| {
+            info!("Emotes not found for '{username}'");
+            HashMap::default()
+        })
     };
 
     let mut state = CHAT_STATE.lock().await;
     let state = state.as_mut().unwrap();
-
     let sender = state.sender.clone();
 
-    if state.current_chat.is_some() {
-        let old = state.current_chat.clone().unwrap();
-        if old != username {
-            info!("Leaving '{old}' chat");
-            if let Err(err) = sender.send(format!("PART #{old}")).await {
-                error!("Send: {err}");
+    if let Some(current) = &state.current_chat {
+        if current != &username {
+            info!("Leaving '{current}' chat");
+            if let Err(err) = sender.send(format!("PART #{current}")).await {
+                error!("Failed to send PART for {current}: {err}");
             }
 
             state.current_chat = None;
@@ -169,10 +166,13 @@ pub async fn join_chat(
     }
 
     info!("Joining '{username}' chat");
-    if sender.send(format!("JOIN #{username}")).await.is_ok() {
-        state.current_chat = Some(username.to_string());
-    } else {
-        error!("Failed to join chat: {username}");
+    match sender.send(format!("JOIN #{username}")).await {
+        Ok(()) => {
+            state.current_chat = Some(username.clone());
+        }
+        Err(err) => {
+            error!("Failed to #JOIN: {username}: {err}");
+        }
     }
 
     let rx = state.receiver.subscribe();
@@ -187,6 +187,7 @@ pub async fn join_chat(
                         if caps.len() < 5 {
                             return None;
                         }
+
                         let color = caps.name("color")?.as_str().to_string();
                         let display_name = caps.name("display_name")?.as_str().to_string();
                         let first_msg = caps.name("first_msg")?.as_str() != "0";
@@ -214,7 +215,10 @@ pub async fn join_chat(
                         None
                     }
                 }
-                Err(_) => None,
+                Err(err) => {
+                    error!("Error while receiving broadcast message: {err}");
+                    None
+                }
             }
         }
     });

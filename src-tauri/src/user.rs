@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, str::FromStr, sync::atomic::Ordering};
 
 use anyhow::Result;
 use log::error;
@@ -8,6 +8,7 @@ use tauri_plugin_store::StoreExt;
 
 use crate::{
     emote::{self, Emote, EMOTES_CACHE, TWITCH_EMOTES_CDN},
+    proxy::{BACKUP_STREAM_URL, MAIN_STREAM_URL, USING_BACKUP},
     queries::{GraphQLQuery, GraphQLResponse, UseLiveQuery, UseLiveResponse},
     utils, LOCAL_API_ADDR,
 };
@@ -238,7 +239,12 @@ pub async fn fetch_stream_info(username: &str, joining_stream: bool) -> Result<S
         let value = stream_playback.value;
 
         match playlist_url(username, false, &signature, &value) {
-            Ok(url) => Some(url),
+            Ok(url) => {
+                USING_BACKUP.store(false, Ordering::Relaxed);
+                *MAIN_STREAM_URL.lock().await = None;
+                *BACKUP_STREAM_URL.lock().await = None;
+                Some(url)
+            }
             Err(err) => {
                 error!("Failed to create playlist URL: {err}");
                 None

@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{anyhow, Result};
 use axum::{
-    body::{Body, HttpBody},
+    body::Body,
     extract::Query,
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -13,14 +13,16 @@ use log::{error, info};
 use regex::Regex;
 use serde::Deserialize;
 use tauri::{Emitter, Url};
-use tauri_plugin_http::reqwest::header::HeaderValue;
 use tokio::sync::Mutex;
 
 use crate::{user, APP_HANDLE, LOCAL_API_ADDR, PROXY_HTTP_CLIENT};
 
 lazy_static! {
-    static ref USING_BACKUP: AtomicBool = AtomicBool::new(false);
-    static ref MAIN_STREAM_URL: Mutex<Option<String>> = Mutex::new(None);
+    // These are public so that they can be reset when changing streams in the tauri commands.
+    pub static ref USING_BACKUP: AtomicBool = AtomicBool::new(false);
+    pub static ref MAIN_STREAM_URL: Mutex<Option<String>> = Mutex::new(None);
+    pub static ref BACKUP_STREAM_URL: Mutex<Option<String>> = Mutex::new(None);
+
     static ref URL_REGEX: Regex = Regex::new(r"^(https?://[^\s]+)").unwrap();
 }
 
@@ -50,109 +52,97 @@ pub async fn proxy_stream(Query(query): Query<ProxyStreamQuery>) -> impl IntoRes
         }
     };
 
-    let mut headers = response.headers().clone();
+    let body_bytes = response.bytes().await.unwrap_or(Bytes::new());
 
-    let content_type = headers
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or_default();
+    let (ad_detected, mut playlist, is_master_playlist) =
+        process_m3u8(&username, &url, &String::from_utf8_lossy(&body_bytes));
 
-    let body = if content_type.contains("application/vnd.apple.mpegurl") {
-        let body_bytes = response.bytes().await.unwrap_or(Bytes::new());
+    let using_backup = USING_BACKUP.load(Ordering::Relaxed);
 
-        let (ad_detected, mut playlist, is_master_playlist, stream_url) =
-            process_m3u8(&username, &url, &String::from_utf8_lossy(&body_bytes));
-
-        if !is_master_playlist {
+    if !is_master_playlist {
+        {
             let mut main_stream = MAIN_STREAM_URL.lock().await;
-
             if main_stream.is_none() {
-                *main_stream = Some(stream_url.clone());
+                *main_stream = Some(url);
             }
+        }
 
-            if ad_detected {
-                if !USING_BACKUP.load(Ordering::SeqCst) {
-                    info!("Found ad in variant playlist. Switching to backup stream.");
-
-                    if let Err(err) = APP_HANDLE
-                        .lock()
-                        .await
-                        .as_ref()
-                        .unwrap()
-                        .emit("stream", "backup")
-                    {
-                        error!("Failed to emit event: {err}");
-                    };
-
-                    USING_BACKUP.store(true, Ordering::SeqCst);
-                }
-
-                match fetch_backup_stream(&username).await {
-                    Ok(pl) => playlist = pl,
-                    Err(err) => {
-                        error!("Failed to fetch backup stream: {err}");
-                        playlist.clear();
-                    }
-                }
-            } else if USING_BACKUP.load(Ordering::SeqCst) {
-                info!("No ad detected. Switching back to main stream.");
+        if ad_detected {
+            // On ad detection, if backup isn’t already enabled, switch to backup
+            if !using_backup {
+                info!("Found ad in variant playlist. Switching to backup stream.");
 
                 if let Err(err) = APP_HANDLE
                     .lock()
                     .await
                     .as_ref()
                     .unwrap()
-                    .emit("stream", "main")
+                    .emit("stream", "backup")
                 {
                     error!("Failed to emit event: {err}");
-                };
+                }
 
-                USING_BACKUP.store(false, Ordering::SeqCst);
+                USING_BACKUP.store(true, Ordering::Relaxed);
+            }
 
-                match fetch_main_stream(&username).await {
-                    Ok(pl) => playlist = pl,
-                    Err(err) => {
-                        error!("Failed to fetch main stream: {err}");
-                        playlist.clear();
-                    }
+            // Use the cached backup stream URL if available, if not, fetch it once
+            let backup_url = {
+                let mut backup_url_guard = BACKUP_STREAM_URL.lock().await;
+
+                if let Some(url) = backup_url_guard.clone() {
+                    url
+                } else {
+                    let url = fetch_backup_stream_url(&username).await.unwrap_or_default();
+                    *backup_url_guard = Some(url.clone());
+                    url
+                }
+            };
+
+            // Fetch an updated backup manifest from the cached backup URL
+            match fetch_playlist_text(&backup_url).await {
+                Ok(updated_playlist) => playlist = updated_playlist,
+                Err(err) => {
+                    error!("Failed to fetch updated backup manifest: {err}");
+                    playlist.clear();
                 }
             }
+        } else {
+            // If no ad is detected but we are still in backup, switch back to the main stream
+            info!("No ad detected. Switching back to main stream.");
+
+            if let Err(err) = APP_HANDLE
+                .lock()
+                .await
+                .as_ref()
+                .unwrap()
+                .emit("stream", "main")
+            {
+                error!("Failed to emit event: {err}");
+            }
+
+            match fetch_main_stream(&username).await {
+                Ok(pl) => playlist = pl,
+                Err(err) => {
+                    error!("Failed to fetch main stream: {err}");
+                    playlist.clear();
+                }
+            }
+
+            USING_BACKUP.store(false, Ordering::Relaxed);
+            *BACKUP_STREAM_URL.lock().await = None;
         }
-
-        Body::from(playlist)
-    } else {
-        Body::from(response.bytes().await.unwrap_or(Bytes::new()))
-    };
-
-    let mut resp = Response::new(Body::default());
-
-    if content_type.contains("stream") {
-        *resp.body_mut() = Body::from_stream(body.into_data_stream());
-    } else {
-        let new_content_length = match body.size_hint().exact() {
-            Some(size) => size.to_string(),
-            None => "0".to_string(),
-        };
-
-        headers.insert(
-            "content-length",
-            HeaderValue::from_str(&new_content_length).unwrap(),
-        );
-
-        *resp.body_mut() = body;
     }
 
-    *resp.headers_mut() = headers.clone();
+    let new_response = Response::new(Body::from(playlist));
 
-    (StatusCode::OK, resp)
+    (StatusCode::OK, new_response)
 }
 
-fn process_m3u8(username: &str, base_url: &str, playlist: &str) -> (bool, String, bool, String) {
+fn process_m3u8(username: &str, base_url: &str, playlist: &str) -> (bool, String, bool) {
     let base_url = Url::parse(base_url).ok();
     let mut result_lines = Vec::new();
     let mut ad_detected = false;
     let mut is_master_playlist = false;
-    let mut stream_url = String::new();
 
     for line in playlist.lines() {
         if line.starts_with("#EXT-X-STREAM-INF") {
@@ -163,17 +153,19 @@ fn process_m3u8(username: &str, base_url: &str, playlist: &str) -> (bool, String
             ad_detected = true;
         }
 
-        if !is_master_playlist && !line.starts_with('#') && !line.trim().is_empty() {
-            stream_url = line.to_string();
-        }
-
+        // Check if line looks like a URL or a non-comment non-empty line
         if URL_REGEX.is_match(line) || (!line.starts_with('#') && !line.is_empty()) {
             if let Some(base) = &base_url {
                 if let Ok(abs_url) = base.join(line) {
-                    result_lines.push(format!(
-                        "http://{LOCAL_API_ADDR}/proxy?username={username}&url={}",
-                        urlencoding::encode(abs_url.as_str())
-                    ));
+                    // Only add the proxy prefix if the URL contains .m3u8
+                    if abs_url.as_str().to_lowercase().contains(".m3u8") {
+                        result_lines.push(format!(
+                            "http://{LOCAL_API_ADDR}/proxy?username={username}&url={}",
+                            urlencoding::encode(abs_url.as_str())
+                        ));
+                    } else {
+                        result_lines.push(abs_url.to_string());
+                    }
 
                     continue;
                 }
@@ -183,12 +175,7 @@ fn process_m3u8(username: &str, base_url: &str, playlist: &str) -> (bool, String
         result_lines.push(line.to_string());
     }
 
-    (
-        ad_detected,
-        result_lines.join("\n"),
-        is_master_playlist,
-        stream_url,
-    )
+    (ad_detected, result_lines.join("\n"), is_master_playlist)
 }
 
 async fn fetch_playlist_text(url: &str) -> Result<String> {
@@ -197,6 +184,7 @@ async fn fetch_playlist_text(url: &str) -> Result<String> {
         .send()
         .await
         .map_err(|err| anyhow!("Failed to fetch: {err}"))?;
+
     response
         .text()
         .await
@@ -206,22 +194,23 @@ async fn fetch_playlist_text(url: &str) -> Result<String> {
 async fn fetch_main_stream(username: &str) -> Result<String> {
     let Some(main_url) = MAIN_STREAM_URL.lock().await.clone() else {
         error!("Main stream URL not found. Falling back to backup stream.");
-        return fetch_backup_stream(username).await;
+        let backup_url = fetch_backup_stream_url(username).await?;
+        return fetch_playlist_text(&backup_url).await;
     };
 
     let body = fetch_playlist_text(&main_url).await?;
-    let (ad_detected, processed_playlist, _, _) = process_m3u8(username, &main_url, &body);
+    let (ad_detected, processed_playlist, _) = process_m3u8(username, &main_url, &body);
 
     if ad_detected {
-        info!("Ads still present in main stream. Using backup stream.");
-        fetch_backup_stream(username).await
-    } else {
-        USING_BACKUP.store(false, Ordering::SeqCst);
-        Ok(processed_playlist)
+        USING_BACKUP.store(true, Ordering::Relaxed);
+        return Ok("#EXTM3U\n#EXT-X-ENDLIST\n".to_string());
     }
+
+    USING_BACKUP.store(false, Ordering::Relaxed);
+    Ok(processed_playlist)
 }
 
-async fn fetch_backup_stream(username: &str) -> Result<String> {
+async fn fetch_backup_stream_url(username: &str) -> Result<String> {
     let url = match user::fetch_stream_playback(username, true).await {
         Ok(url) => url,
         Err(err) => {
@@ -237,11 +226,12 @@ async fn fetch_backup_stream(username: &str) -> Result<String> {
     let decoded_url = urlencoding::decode(&backup_url)?.to_string();
 
     let body = fetch_playlist_text(&decoded_url).await?;
+
     let variant_playlist_url = body
         .lines()
         .nth(4)
         .ok_or_else(|| anyhow!("Backup master playlist is malformed."))?
         .to_string();
 
-    fetch_playlist_text(&variant_playlist_url).await
+    Ok(variant_playlist_url)
 }

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::Result;
 use axum::{routing::get, Router};
@@ -55,6 +55,7 @@ lazy_static! {
         .gzip(true)
         .use_rustls_tls()
         .https_only(true)
+        .tcp_keepalive(Duration::from_secs(5))
         .build()
         .unwrap();
 

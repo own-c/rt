@@ -27,12 +27,6 @@
   },
   "plugins": {
     "deep-link": {
-      "mobile": [
-        {
-          "host": "twitch.tv",
-          "path": "/*"
-        }
-      ],
       "desktop": {
         "schemes": [
           "rt"
