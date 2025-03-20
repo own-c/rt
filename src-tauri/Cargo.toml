@@ -47,13 +47,13 @@ tokio-tungstenite = { version = "0.26.2", features = [
     "rustls-tls-native-roots",
 ] }
 futures-util = { version = "0.3.31", default-features = false }
-rustls = "0.23.23"
+rustls = "0.23.25"
 tokio-stream = { version = "0.1.17", features = ["sync"] }
 
 # Tauri
 tauri = { version = "2.3.1", features = [] }
 tauri-plugin-opener = "2.2.6"
-tauri-plugin-http = { version = "2.4.1", features = ["gzip", "json", "stream"] }
+tauri-plugin-http = { version = "2.4.2", features = ["gzip", "json", "stream"] }
 tauri-plugin-deep-link = "2.2.0"
 tauri-plugin-store = "2.2.0"
 tauri-plugin-log = "2.3.1"

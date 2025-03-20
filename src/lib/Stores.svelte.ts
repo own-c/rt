@@ -1,7 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
 import { load, type Store } from '@tauri-apps/plugin-store';
 
-import { error } from './components/Notification.svelte';
+import { error, info } from './components/Notification.svelte';
+
+let ui_loading: boolean = $state(false);
 
 // eslint-disable-next-line prefer-const
 export let users: Record<string, User> = $state({});
@@ -35,6 +37,8 @@ export async function initStores() {
 }
 
 export async function refreshUsers() {
+	ui_loading = true;
+
 	const usernames = Object.keys(users);
 	if (usernames.length === 0) return;
 
@@ -47,9 +51,13 @@ export async function refreshUsers() {
 		.catch((err) => {
 			error(`Error fetching live now`, err);
 		});
+
+	ui_loading = false;
 }
 
 export async function updateUser(username: string, switchStream: boolean) {
+	ui_loading = true;
+
 	await invoke<User>('fetch_full_user', { username: username })
 		.then(async (user) => {
 			if (user.stream && switchStream) {
@@ -74,6 +82,30 @@ export async function updateUser(username: string, switchStream: boolean) {
 		.catch((err) => {
 			error(`Error fetching user`, err);
 		});
+
+	ui_loading = false;
+}
+
+export async function joinStream(username: string) {
+	ui_loading = true;
+
+	await invoke<Stream>('fetch_stream_info', {
+		username: username,
+		joiningStream: true
+	})
+		.then((data) => {
+			if (!data.url) {
+				info(`Stream not found`);
+				return;
+			}
+
+			updateWatching(username, data);
+		})
+		.catch((err) => {
+			error(`Error fetching stream info`, err);
+		});
+
+	ui_loading = false;
 }
 
 export async function setUser(newUser: User) {
@@ -86,6 +118,10 @@ export async function removeUser(username: string) {
 
 	delete users[username];
 	await saveUsers();
+}
+
+export function userExists(username: string) {
+	return users[username] ? true : false;
 }
 
 async function saveUsers() {
@@ -126,4 +162,8 @@ export function parseTime(totalSeconds: number) {
 	const formattedSeconds = seconds.toString().padStart(2, '0');
 
 	return `${hours}:${formattedMinutes}:${formattedSeconds}`;
+}
+
+export function is_ui_loading(): boolean {
+	return ui_loading;
 }

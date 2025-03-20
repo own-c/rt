@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { fade } from 'svelte/transition';
 
-	import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
+	import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
 	import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 	import 'simplebar';
@@ -14,7 +14,7 @@
 	import Chat from '$lib/components/Chat.svelte';
 	import Notification, { error, info } from '$lib/components/Notification.svelte';
 
-	import { watching, initStores, updateUser } from '$lib/Stores.svelte';
+	import { watching, initStores, updateUser, userExists, joinStream } from '$lib/Stores.svelte';
 
 	const appWebview = getCurrentWebviewWindow();
 	appWebview.listen<string>('stream', (event) => {
@@ -56,29 +56,47 @@
 		}
 	}
 
+	async function handleURL(url: string) {
+		let username = '';
+
+		const matches = url.match(twitchReg);
+		if (matches && matches[1]) {
+			username = matches[1];
+		} else {
+			const parts = url
+				.replace(/^rt:\/+/, '')
+				.trim()
+				.split('/');
+
+			username = parts[0];
+		}
+
+		if (!username) {
+			error(`Username was empty when opening via URL`, `URL: ${url}`);
+			return;
+		}
+
+		// Avoid always updating, let the user manually update if needed
+		if (!userExists(username)) {
+			await updateUser(username, true);
+			return;
+		}
+
+		await joinStream(username);
+	}
+
 	onMount(async () => {
 		await initStores();
 
+		await getCurrent().then(async (current) => {
+			if (current && current[0]) {
+				await handleURL(current[0]);
+			}
+		});
+
 		await onOpenUrl(async (urls) => {
 			if (urls && urls[0]) {
-				const url = urls[0];
-
-				let username = '';
-
-				const matches = url.match(twitchReg);
-				if (matches && matches[1]) {
-					username = matches[1];
-				} else {
-					const parts = url.replace('rt://', '').trim().split('/');
-					username = parts[0];
-				}
-
-				if (!username) {
-					error(`Username was empty when opening via URL`, `URLS: ${urls.join(', ')}`);
-					return;
-				}
-
-				await updateUser(username, true);
+				await handleURL(urls[0]);
 			}
 		});
 	});

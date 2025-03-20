@@ -1,9 +1,7 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 
-	import { invoke } from '@tauri-apps/api/core';
-
-	import { error, info } from './Notification.svelte';
+	import { info } from './Notification.svelte';
 
 	import {
 		live_now,
@@ -11,12 +9,11 @@
 		watching,
 		refreshUsers,
 		removeUser,
-		updateWatching,
 		updateUser,
-		parseTime
+		parseTime,
+		joinStream,
+		is_ui_loading
 	} from '$lib/Stores.svelte';
-
-	let loading = $state(false);
 
 	let rightClickedUser = $state('');
 
@@ -57,10 +54,7 @@
 	}
 
 	async function handleRefreshUsers() {
-		loading = true;
 		await refreshUsers();
-		loading = false;
-
 		info('Refreshed users');
 	}
 
@@ -76,52 +70,25 @@
 	}
 
 	async function changeStream(username: string) {
-		loading = true;
-
-		await invoke<Stream>('fetch_stream_info', {
-			username: username,
-			joiningStream: true
-		})
-			.then((data) => {
-				if (!data.url) {
-					info(`Stream not found`);
-					return;
-				}
-
-				updateWatching(username, data);
-			})
-			.catch((err) => {
-				error(`Error fetching stream info`, err);
-			});
-
-		loading = false;
+		showInput = false;
+		await joinStream(username);
 	}
 
 	async function handleAddUser(username: string) {
 		showInput = false;
-		loading = true;
-
 		await updateUser(username, true);
-
-		loading = false;
 		info(`Added '${username}'`);
 	}
 
 	async function handleUpdateUser() {
-		loading = true;
 		showContextMenu = false;
-
 		await updateUser(rightClickedUser, false);
-
-		loading = false;
 		info(`Updated '${rightClickedUser}'`);
 	}
 
 	async function handleRemoveUser() {
 		showContextMenu = false;
-
 		await removeUser(rightClickedUser);
-
 		info(`Removed '${rightClickedUser}'`);
 	}
 
@@ -150,9 +117,9 @@
 		<button
 			aria-label="Refresh users"
 			title="Refresh users"
-			disabled={loading}
+			disabled={is_ui_loading()}
 			onclick={async () => await handleRefreshUsers()}
-			class="flex flex-col items-center cursor-pointer w-full py-2 {loading
+			class="flex flex-col items-center cursor-pointer w-full py-2 {is_ui_loading()
 				? 'opacity-50'
 				: 'hover:bg-neutral-600'}"
 		>
@@ -173,17 +140,17 @@
 			const bLive = live_now[b.username] ? 1 : 0;
 			return bLive - aLive;
 		}) as user, index (index)}
+			{@const disabled =
+				!users ||
+				Object.keys(users).length === 0 ||
+				is_ui_loading() ||
+				user.username === watching.username}
+
 			<button
 				id={user.username}
 				title={live_now[user.username] ? getStreamingFor(user.username) : user.username}
-				disabled={!users ||
-					Object.keys(users).length === 0 ||
-					loading ||
-					user.username === watching.username}
-				class="flex flex-col items-center w-full py-1 {!users ||
-				Object.keys(users).length === 0 ||
-				loading ||
-				user.username === watching.username
+				{disabled}
+				class="flex flex-col items-center w-full py-1 {disabled
 					? 'opacity-50'
 					: 'cursor-pointer hover:bg-neutral-600'}"
 				onclick={async () => await changeStream(user.username)}
@@ -245,11 +212,17 @@
 		class="flex flex-col gap-1 absolute shadow-lg rounded z-50 bg-neutral-700 py-1"
 		style="top: {rightClickPos.y}px; left: {rightClickPos.x + 10}px;"
 	>
-		<button class="hover:bg-neutral-500 px-2 cursor-pointer w-full" onclick={handleUpdateUser}>
+		<button
+			class="hover:bg-neutral-500 px-2 cursor-pointer w-full"
+			onclick={async () => await handleUpdateUser()}
+		>
 			Update
 		</button>
 
-		<button class="hover:bg-red-500 px-2 cursor-pointer w-full" onclick={handleRemoveUser}>
+		<button
+			class="hover:bg-red-500 px-2 cursor-pointer w-full"
+			onclick={async () => await handleRemoveUser()}
+		>
 			Remove
 		</button>
 	</div>

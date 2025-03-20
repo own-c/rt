@@ -58,7 +58,7 @@
 
 	{#if watching.username}
 		<div class="flex flex-1 justify-center gap-2">
-			<button class="text-lg font-bold">
+			<button class="text-lg font-bold" data-tauri-drag-region>
 				{watching.username}
 			</button>
 

@@ -19,7 +19,6 @@
 		<media-plyr-layout
 			displayDuration={true}
 			controls={[
-				'play-large',
 				'play',
 				'progress',
 				'current-time',

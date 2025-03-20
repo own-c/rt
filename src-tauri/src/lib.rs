@@ -142,7 +142,12 @@ fn load_emotes(app: &App) {
             if let Ok(stored_emotes) =
                 serde_json::from_value::<HashMap<String, Emote>>(stored_emotes)
             {
-                emotes.insert(username.to_string(), stored_emotes);
+                emotes
+                    .entry(username.to_string())
+                    .and_modify(|user_emotes| {
+                        user_emotes.extend(stored_emotes.clone());
+                    })
+                    .or_insert(stored_emotes);
             } else {
                 error!("Failed to deserialize '{store_name}' emotes for '{username}'");
             }
