@@ -69,6 +69,8 @@ pub fn run() {
         .install_default()
         .expect("Failed to install rustls crypto provider");
 
+    async_runtime::spawn(async { start_api_server().await });
+
     let mut builder = tauri::Builder::default();
 
     #[cfg(desktop)]
@@ -107,8 +109,6 @@ pub fn run() {
 
                 init_chat_state().await
             })?;
-
-            async_runtime::spawn(async { start_api_server().await });
 
             Ok(())
         });
