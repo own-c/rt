@@ -18,6 +18,7 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
     
+    "sql:default",
     "window-state:default",
     "deep-link:default",
     "log:default",

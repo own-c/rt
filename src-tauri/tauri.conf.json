@@ -25,6 +25,9 @@
     }
   },
   "plugins": {
+    "sql": {
+      "preload": ["sqlite:emotes.db"]
+    },
     "deep-link": {
       "desktop": {
         "schemes": [

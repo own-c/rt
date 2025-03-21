@@ -1,15 +1,93 @@
-use std::{collections::HashMap, sync::Mutex};
+use std::collections::HashMap;
 
 use anyhow::{anyhow, Context, Result};
 use axum::http::StatusCode;
-use lazy_static::lazy_static;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::HTTP_CLIENT;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use sqlx::Row;
+
+use crate::{APP_STATE, HTTP_CLIENT};
 
 pub const TWITCH_EMOTES_CDN: &str = "https://static-cdn.jtvnw.net/emoticons/v2";
 const SEVENTV_API: &str = "https://7tv.io/v3";
 const BETTERTV_API: &str = "https://api.betterttv.net/3";
+
+pub async fn query_emotes(username: &str) -> Result<HashMap<String, Emote>, String> {
+    let state = APP_STATE.lock().await;
+    let db = state.emotes_db.as_ref().ok_or("Database not initialized")?;
+
+    let query = "SELECT name, url, width, height FROM emotes WHERE username = ?";
+
+    let rows = sqlx::query(query)
+        .bind(username)
+        .fetch_all(db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let mut emotes = HashMap::new();
+
+    for row in rows {
+        let emote_name: String = row.try_get("name").map_err(|e| e.to_string())?;
+        let url: String = row.try_get("url").map_err(|e| e.to_string())?;
+        let width: i64 = row.try_get("width").map_err(|e| e.to_string())?;
+        let height: i64 = row.try_get("height").map_err(|e| e.to_string())?;
+
+        let emote = Emote {
+            name: emote_name.clone(),
+            url,
+            width,
+            height,
+        };
+
+        emotes.insert(emote_name, emote);
+    }
+
+    Ok(emotes)
+}
+
+pub async fn save_emotes(username: &str, emotes: HashMap<String, Emote>) -> Result<()> {
+    let state = APP_STATE.lock().await;
+    let db = state.emotes_db.as_ref().expect("Database not initialized");
+
+    let mut tx = db.begin().await?;
+
+    sqlx::query("DELETE FROM emotes WHERE username = ?")
+        .bind(username)
+        .execute(&mut *tx)
+        .await?;
+
+    if emotes.is_empty() {
+        tx.commit().await?;
+        return Ok(());
+    }
+
+    let emote_values: Vec<&Emote> = emotes.values().collect();
+
+    let mut query_str =
+        String::from("INSERT INTO emotes (username, name, url, width, height) VALUES ");
+
+    let placeholders: Vec<String> = emote_values
+        .iter()
+        .map(|_| "(?, ?, ?, ?, ?)".to_string())
+        .collect();
+
+    query_str.push_str(&placeholders.join(", "));
+
+    let mut sql_query = sqlx::query(&query_str);
+    for emote in emote_values {
+        sql_query = sql_query
+            .bind(username)
+            .bind(&emote.name)
+            .bind(&emote.url)
+            .bind(emote.width)
+            .bind(emote.height);
+    }
+
+    sql_query.execute(&mut *tx).await?;
+
+    tx.commit().await?;
+    Ok(())
+}
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Emote {
@@ -21,11 +99,6 @@ pub struct Emote {
     pub width: i64,
     #[serde(rename = "h")]
     pub height: i64,
-}
-
-lazy_static! {
-    pub static ref EMOTES_CACHE: Mutex<HashMap<String, HashMap<String, Emote>>> =
-        Mutex::new(HashMap::new());
 }
 
 #[derive(Deserialize, Default)]

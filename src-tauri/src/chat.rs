@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::Infallible, time::Duration};
 
 use crate::{
-    emote::{Emote, EMOTES_CACHE},
+    emote::{query_emotes, Emote},
     utils, CHAT_STATE,
 };
 use anyhow::Result;
@@ -141,14 +141,7 @@ struct Fragment {
 pub async fn join_chat(
     Path(username): Path<String>,
 ) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
-    let user_emotes = {
-        let cache = EMOTES_CACHE.lock().unwrap();
-
-        cache.get(&username).cloned().unwrap_or_else(|| {
-            info!("Emotes not found for '{username}'");
-            HashMap::default()
-        })
-    };
+    let user_emotes = query_emotes(&username).await.unwrap_or_default();
 
     let mut state = CHAT_STATE.lock().await;
     let state = state.as_mut().unwrap();

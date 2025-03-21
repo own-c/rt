@@ -1,23 +1,22 @@
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 
 use anyhow::Result;
 use axum::{routing::get, Router};
-use emote::{Emote, EMOTES_CACHE};
 use lazy_static::lazy_static;
-use log::{error, info};
+use log::{info, LevelFilter};
+use sqlx::SqlitePool;
 use tauri::{
     async_runtime::{self, Mutex},
-    App, AppHandle, Manager,
+    AppHandle, Manager,
 };
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_http::reqwest::{redirect::Policy, Client};
-use tauri_plugin_store::StoreExt;
+use tauri_plugin_sql::{Migration, MigrationKind};
 use tokio::{
     net::TcpListener,
     sync::{broadcast, mpsc},
 };
 use tower_http::cors::{Any, CorsLayer};
-
 mod chat;
 mod emote;
 mod proxy;
@@ -35,6 +34,11 @@ pub struct ChatState {
     sender: mpsc::Sender<String>,
     /// For receiving messages from the websocket.
     receiver: broadcast::Sender<String>,
+}
+
+#[derive(Default)]
+pub struct AppState {
+    pub emotes_db: Option<SqlitePool>,
 }
 
 lazy_static! {
@@ -61,6 +65,8 @@ lazy_static! {
 
     // Hold the AppHandle to allow events to be sent to the main window.
     pub static ref APP_HANDLE: Mutex<Option<AppHandle>> = Mutex::new(None);
+
+    pub static ref APP_STATE: Mutex<AppState> = Mutex::new(AppState::default());
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -79,6 +85,11 @@ pub fn run() {
     }
 
     builder = builder
+        .plugin(
+            tauri_plugin_sql::Builder::new()
+                .add_migrations("sqlite:emotes.db", emotes_migrations())
+                .build(),
+        )
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
@@ -86,6 +97,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::new()
+                .level(LevelFilter::Info)
                 .level_for("reqwest", log::LevelFilter::Debug)
                 .level_for("rustls", log::LevelFilter::Off)
                 .level_for("tungstenite", log::LevelFilter::Off)
@@ -100,12 +112,18 @@ pub fn run() {
             #[cfg(desktop)]
             app.deep_link().register("rt")?;
 
-            load_emotes(app);
-
-            let app_handle = app.app_handle();
+            let handle = app.app_handle();
+            let path = app.path().app_data_dir()?;
 
             async_runtime::block_on(async move {
-                *APP_HANDLE.lock().await = Some(app_handle.clone());
+                let db_path = path.join("emotes.db");
+                let db = SqlitePool::connect(db_path.to_str().unwrap()).await?;
+
+                *APP_STATE.lock().await = AppState {
+                    emotes_db: Some(db),
+                };
+
+                *APP_HANDLE.lock().await = Some(handle.clone());
 
                 init_chat_state().await
             })?;
@@ -124,44 +142,22 @@ pub fn run() {
         .expect("while running tauri application");
 }
 
-fn load_emotes(app: &App) {
-    let mut emotes: HashMap<String, HashMap<String, Emote>> = HashMap::new();
-
-    let mut load = |store_name: &str| {
-        info!("Loading emote store '{store_name}'");
-
-        let store = match app.store(store_name) {
-            Ok(store) => store,
-            Err(err) => {
-                error!("Failed to load emote store '{store_name}': {err}");
-                return;
-            }
-        };
-
-        for (username, stored_emotes) in store.entries() {
-            if let Ok(stored_emotes) =
-                serde_json::from_value::<HashMap<String, Emote>>(stored_emotes)
-            {
-                emotes
-                    .entry(username.to_string())
-                    .and_modify(|user_emotes| {
-                        user_emotes.extend(stored_emotes.clone());
-                    })
-                    .or_insert(stored_emotes);
-            } else {
-                error!("Failed to deserialize '{store_name}' emotes for '{username}'");
-            }
-        }
-    };
-
-    load("user_emotes.json");
-    load("seventv_emotes.json");
-    load("bettertv_emotes.json");
-
-    let mut cache = EMOTES_CACHE.lock().unwrap();
-    *cache = emotes;
-
-    info!("Loaded emotes for {} users", cache.len());
+fn emotes_migrations() -> Vec<Migration> {
+    vec![Migration {
+        version: 1,
+        description: "create_emotes_table",
+        sql: r"
+                CREATE TABLE IF NOT EXISTS emotes (
+                    username TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    url TEXT,
+                    width INTEGER,
+                    height INTEGER,
+                    PRIMARY KEY (username, name)
+                );
+            ",
+        kind: MigrationKind::Up,
+    }]
 }
 
 async fn init_chat_state() -> Result<()> {

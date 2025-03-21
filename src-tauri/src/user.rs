@@ -3,11 +3,10 @@ use std::{collections::HashMap, str::FromStr, sync::atomic::Ordering};
 use anyhow::Result;
 use log::error;
 use serde::Serialize;
-use tauri::{AppHandle, Url};
-use tauri_plugin_store::StoreExt;
+use tauri::Url;
 
 use crate::{
-    emote::{self, Emote, EMOTES_CACHE, TWITCH_EMOTES_CDN},
+    emote::{self, save_emotes, Emote, TWITCH_EMOTES_CDN},
     proxy::{BACKUP_STREAM_URL, MAIN_STREAM_URL, USING_BACKUP},
     queries::{GraphQLQuery, GraphQLResponse, UseLiveQuery, UseLiveResponse},
     utils, LOCAL_API_ADDR,
@@ -88,7 +87,7 @@ pub struct Stream {
 
 /// Returns up to date information about a user, including third party emotes. Emotes are saved to the store here.
 #[tauri::command]
-pub async fn fetch_full_user(app: AppHandle, username: &str) -> Result<User, String> {
+pub async fn fetch_full_user(username: &str) -> Result<User, String> {
     if username.is_empty() {
         return Err(String::from("Username cannot be empty"));
     }
@@ -150,9 +149,6 @@ pub async fn fetch_full_user(app: AppHandle, username: &str) -> Result<User, Str
         }
     }
 
-    let user_emotes_store = app.store("user_emotes.json").unwrap();
-    user_emotes_store.set(username, serde_json::to_value(&user_emotes).unwrap());
-
     let user_id = user.id.unwrap();
 
     let seventv_emotes = match emote::fetch_7tv_emotes(&user_id).await {
@@ -163,9 +159,6 @@ pub async fn fetch_full_user(app: AppHandle, username: &str) -> Result<User, Str
         }
     };
 
-    let seventv_emotes_store = app.store("seventv_emotes.json").unwrap();
-    seventv_emotes_store.set(username, serde_json::to_value(&seventv_emotes).unwrap());
-
     let bettertv_emotes = match emote::fetch_bettertv_emotes(&user_id).await {
         Ok(emotes) => emotes,
         Err(err) => {
@@ -174,16 +167,12 @@ pub async fn fetch_full_user(app: AppHandle, username: &str) -> Result<User, Str
         }
     };
 
-    let bettertv_emotes_store = app.store("bettertv_emotes.json").unwrap();
-    bettertv_emotes_store.set(username, serde_json::to_value(&bettertv_emotes).unwrap());
-
     user_emotes.extend(seventv_emotes);
     user_emotes.extend(bettertv_emotes);
 
-    EMOTES_CACHE
-        .lock()
-        .unwrap()
-        .insert(username.to_string(), user_emotes);
+    if let Err(err) = save_emotes(username, user_emotes).await {
+        error!("Failed to save emotes for user '{username}': {err}");
+    }
 
     let user = User {
         id: user_id,
