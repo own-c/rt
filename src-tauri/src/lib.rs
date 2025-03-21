@@ -1,40 +1,14 @@
-use std::time::Duration;
-
-use anyhow::Result;
-use axum::{routing::get, Router};
 use lazy_static::lazy_static;
-use log::{info, LevelFilter};
+use log::LevelFilter;
 use sqlx::SqlitePool;
-use tauri::{
-    async_runtime::{self, Mutex},
-    AppHandle, Manager,
-};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_plugin_http::reqwest::{redirect::Policy, Client};
 use tauri_plugin_sql::{Migration, MigrationKind};
-use tokio::{
-    net::TcpListener,
-    sync::{broadcast, mpsc},
-};
-use tower_http::cors::{Any, CorsLayer};
-mod chat;
-mod emote;
-mod proxy;
-mod queries;
-mod user;
+use tokio::sync::Mutex;
+use twitch::user;
+
+mod twitch;
 mod utils;
-
-pub const LOCAL_API_ADDR: &str = "127.0.0.1:3030";
-
-pub const GRAPHQL_API: &str = "https://gql.twitch.tv/gql";
-
-pub struct ChatState {
-    current_chat: Option<String>,
-    /// For sending messages to the chat websocket.
-    sender: mpsc::Sender<String>,
-    /// For receiving messages from the websocket.
-    receiver: broadcast::Sender<String>,
-}
 
 #[derive(Default)]
 pub struct AppState {
@@ -42,31 +16,8 @@ pub struct AppState {
 }
 
 lazy_static! {
-    pub static ref CHAT_STATE: Mutex<Option<ChatState>> = Mutex::new(None);
-
-    // Used for various requests.
-    pub static ref HTTP_CLIENT: Client = Client::builder()
-        .gzip(true)
-        .use_rustls_tls()
-        .redirect(Policy::none())
-        .https_only(true)
-        .http2_prior_knowledge()
-        .build()
-        .unwrap();
-
-    // Specifically used in the proxy.
-    pub static ref PROXY_HTTP_CLIENT: Client = Client::builder()
-        .gzip(true)
-        .use_rustls_tls()
-        .https_only(true)
-        .tcp_keepalive(Duration::from_secs(5))
-        .build()
-        .unwrap();
-
     // Hold the AppHandle to allow events to be sent to the main window.
     pub static ref APP_HANDLE: Mutex<Option<AppHandle>> = Mutex::new(None);
-
-    pub static ref APP_STATE: Mutex<AppState> = Mutex::new(AppState::default());
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -74,8 +25,6 @@ pub fn run() {
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("Failed to install rustls crypto provider");
-
-    async_runtime::spawn(async { start_api_server().await });
 
     let mut builder = tauri::Builder::default();
 
@@ -99,34 +48,15 @@ pub fn run() {
             tauri_plugin_log::Builder::new()
                 .level(LevelFilter::Info)
                 .level_for("reqwest", log::LevelFilter::Debug)
-                .level_for("rustls", log::LevelFilter::Off)
-                .level_for("tungstenite", log::LevelFilter::Off)
-                .level_for("tokio_tungstenite", log::LevelFilter::Off)
-                .level_for(
-                    "tao::platform_impl::platform::event_loop::runner",
-                    log::LevelFilter::Off,
-                )
                 .build(),
         )
         .setup(|app| {
             #[cfg(desktop)]
             app.deep_link().register("rt")?;
 
-            let handle = app.app_handle();
-            let path = app.path().app_data_dir()?;
+            let app_data_path = app.path().app_data_dir()?;
 
-            async_runtime::block_on(async move {
-                let db_path = path.join("emotes.db");
-                let db = SqlitePool::connect(db_path.to_str().unwrap()).await?;
-
-                *APP_STATE.lock().await = AppState {
-                    emotes_db: Some(db),
-                };
-
-                *APP_HANDLE.lock().await = Some(handle.clone());
-
-                init_chat_state().await
-            })?;
+            twitch::main::setup(&app_data_path)?;
 
             Ok(())
         });
@@ -158,36 +88,4 @@ fn emotes_migrations() -> Vec<Migration> {
             ",
         kind: MigrationKind::Up,
     }]
-}
-
-async fn init_chat_state() -> Result<()> {
-    let (ws_sender, ws_receiver) = chat::init_irc_connection().await?;
-
-    let chat = Some(ChatState {
-        current_chat: None,
-        sender: ws_sender,
-        receiver: ws_receiver,
-    });
-
-    let mut state = CHAT_STATE.lock().await;
-    *state = chat;
-
-    info!("Initialized chat state");
-    Ok(())
-}
-
-async fn start_api_server() -> Result<()> {
-    let cors_layer = CorsLayer::new().allow_origin(Any).allow_methods(Any);
-
-    info!("Binding API server on {LOCAL_API_ADDR}");
-    let listener = TcpListener::bind(LOCAL_API_ADDR).await?;
-
-    let app = Router::new()
-        .route("/chat/{username}", get(chat::join_chat))
-        .route("/proxy", get(proxy::proxy_stream))
-        .layer(cors_layer);
-
-    info!("Starting API server");
-    axum::serve(listener, app).await?;
-    Ok(())
 }

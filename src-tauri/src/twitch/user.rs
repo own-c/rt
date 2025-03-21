@@ -5,15 +5,14 @@ use log::error;
 use serde::Serialize;
 use tauri::Url;
 
-use crate::{
-    emote::{self, save_emotes, Emote, TWITCH_EMOTES_CDN},
+use crate::utils;
+
+use super::{
+    emote::{self, Emote, TWITCH_EMOTES_CDN},
+    main::{self, LOCAL_API_ADDR, USHER_API},
     proxy::{BACKUP_STREAM_URL, MAIN_STREAM_URL, USING_BACKUP},
     queries::{GraphQLQuery, GraphQLResponse, UseLiveQuery, UseLiveResponse},
-    utils, LOCAL_API_ADDR,
 };
-
-const USHER_API: &str = "https://usher.ttvnw.net/api/channel/hls";
-pub const BOXART_CDN: &str = "https://static-cdn.jtvnw.net/ttv-boxart";
 
 #[derive(Serialize, Debug)]
 pub struct LiveNow {
@@ -37,7 +36,7 @@ pub async fn fetch_live_now(usernames: Vec<String>) -> Result<HashMap<String, Li
         query.push(UseLiveQuery::new(&username));
     }
 
-    let response: Vec<UseLiveResponse> = match utils::send_query(query).await {
+    let response: Vec<UseLiveResponse> = match main::send_query(query).await {
         Ok(data) => data,
         Err(err) => {
             return Err(format!("Failed to fetch UseLive: {err}"));
@@ -94,7 +93,7 @@ pub async fn fetch_full_user(username: &str) -> Result<User, String> {
 
     let query = GraphQLQuery::full_user(username);
 
-    let response: GraphQLResponse = match utils::send_query(query).await {
+    let response: GraphQLResponse = match main::send_query(query).await {
         Ok(response) => response,
         Err(err) => {
             return Err(format!("Failed to fetch user '{username}': {err}"));
@@ -114,7 +113,7 @@ pub async fn fetch_full_user(username: &str) -> Result<User, String> {
                 (String::new(), String::new())
             };
 
-            let boxart = utils::fetch_game_boxart(game_id).await;
+            let boxart = main::fetch_game_boxart(game_id).await;
 
             let view_count = stream.viewers_count.to_string();
 
@@ -170,7 +169,7 @@ pub async fn fetch_full_user(username: &str) -> Result<User, String> {
     user_emotes.extend(seventv_emotes);
     user_emotes.extend(bettertv_emotes);
 
-    if let Err(err) = save_emotes(username, user_emotes).await {
+    if let Err(err) = emote::update_user_emotes(username, user_emotes).await {
         error!("Failed to save emotes for user '{username}': {err}");
     }
 
@@ -192,7 +191,7 @@ pub async fn fetch_stream_info(username: &str, joining_stream: bool) -> Result<S
 
     let query = GraphQLQuery::stream_query(username, joining_stream);
 
-    let response: GraphQLResponse = match utils::send_query(query).await {
+    let response: GraphQLResponse = match main::send_query(query).await {
         Ok(response) => response,
         Err(err) => return Err(format!("Failed to fetch stream info: {err}")),
     };
@@ -215,7 +214,7 @@ pub async fn fetch_stream_info(username: &str, joining_stream: bool) -> Result<S
         (String::new(), String::new())
     };
 
-    let boxart = utils::fetch_game_boxart(game_id).await;
+    let boxart = main::fetch_game_boxart(game_id).await;
 
     let url = if joining_stream {
         let Some(stream_playback) = response.data.stream_playback_access_token else {
@@ -263,7 +262,7 @@ pub async fn fetch_stream_playback(username: &str, backup: bool) -> Result<Strin
 
     let query = GraphQLQuery::playback_query(username, backup);
 
-    let response: GraphQLResponse = match utils::send_query(query).await {
+    let response: GraphQLResponse = match main::send_query(query).await {
         Ok(response) => response,
         Err(err) => {
             return Err(format!("Failed to fetch stream info: {err}"));

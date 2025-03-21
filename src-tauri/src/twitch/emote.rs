@@ -6,15 +6,15 @@ use axum::http::StatusCode;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sqlx::Row;
 
-use crate::{APP_STATE, HTTP_CLIENT};
+use super::main::{EMOTES_DB, HTTP_CLIENT};
 
 pub const TWITCH_EMOTES_CDN: &str = "https://static-cdn.jtvnw.net/emoticons/v2";
 const SEVENTV_API: &str = "https://7tv.io/v3";
 const BETTERTV_API: &str = "https://api.betterttv.net/3";
 
-pub async fn query_emotes(username: &str) -> Result<HashMap<String, Emote>, String> {
-    let state = APP_STATE.lock().await;
-    let db = state.emotes_db.as_ref().ok_or("Database not initialized")?;
+pub async fn query_user_emotes(username: &str) -> Result<HashMap<String, Emote>, String> {
+    let lock = EMOTES_DB.lock().await;
+    let db = lock.as_ref().expect("Database not initialized");
 
     let query = "SELECT name, url, width, height FROM emotes WHERE username = ?";
 
@@ -45,9 +45,9 @@ pub async fn query_emotes(username: &str) -> Result<HashMap<String, Emote>, Stri
     Ok(emotes)
 }
 
-pub async fn save_emotes(username: &str, emotes: HashMap<String, Emote>) -> Result<()> {
-    let state = APP_STATE.lock().await;
-    let db = state.emotes_db.as_ref().expect("Database not initialized");
+pub async fn update_user_emotes(username: &str, emotes: HashMap<String, Emote>) -> Result<()> {
+    let lock = EMOTES_DB.lock().await;
+    let db = lock.as_ref().expect("Database not initialized");
 
     let mut tx = db.begin().await?;
 

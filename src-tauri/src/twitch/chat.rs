@@ -1,9 +1,5 @@
 use std::{collections::HashMap, convert::Infallible, time::Duration};
 
-use crate::{
-    emote::{query_emotes, Emote},
-    utils, CHAT_STATE,
-};
 use anyhow::Result;
 use axum::{
     extract::Path,
@@ -24,6 +20,13 @@ use tokio::{
 };
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_tungstenite::tungstenite::Message;
+
+use crate::{
+    twitch::{emote, main::CHAT_STATE},
+    utils,
+};
+
+use super::emote::Emote;
 
 const WS_CHAT_URL: &str = "wss://irc-ws.chat.twitch.tv";
 const PING: &str = "PING";
@@ -141,7 +144,9 @@ struct Fragment {
 pub async fn join_chat(
     Path(username): Path<String>,
 ) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
-    let user_emotes = query_emotes(&username).await.unwrap_or_default();
+    let user_emotes = emote::query_user_emotes(&username)
+        .await
+        .unwrap_or_default();
 
     let mut state = CHAT_STATE.lock().await;
     let state = state.as_mut().unwrap();

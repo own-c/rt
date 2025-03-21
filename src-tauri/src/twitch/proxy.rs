@@ -15,7 +15,12 @@ use serde::Deserialize;
 use tauri::{Emitter, Url};
 use tokio::sync::Mutex;
 
-use crate::{user, APP_HANDLE, LOCAL_API_ADDR, PROXY_HTTP_CLIENT};
+use crate::APP_HANDLE;
+
+use super::{
+    main::{LOCAL_API_ADDR, PROXY_HTTP_CLIENT},
+    user,
+};
 
 lazy_static! {
     // These are public so that they can be reset when changing streams in the tauri commands.
@@ -72,13 +77,10 @@ pub async fn proxy_stream(Query(query): Query<ProxyStreamQuery>) -> impl IntoRes
             if !using_backup {
                 info!("Found ad in variant playlist. Switching to backup stream.");
 
-                if let Err(err) = APP_HANDLE
-                    .lock()
-                    .await
-                    .as_ref()
-                    .unwrap()
-                    .emit("stream", "backup")
-                {
+                let lock = APP_HANDLE.lock().await;
+                let app_handle = lock.as_ref().unwrap();
+
+                if let Err(err) = app_handle.emit("stream", "backup") {
                     error!("Failed to emit event: {err}");
                 }
 
@@ -110,13 +112,10 @@ pub async fn proxy_stream(Query(query): Query<ProxyStreamQuery>) -> impl IntoRes
             // If no ad is detected but we are still in backup, switch back to the main stream
             info!("No ad detected. Switching back to main stream.");
 
-            if let Err(err) = APP_HANDLE
-                .lock()
-                .await
-                .as_ref()
-                .unwrap()
-                .emit("stream", "main")
-            {
+            let lock = APP_HANDLE.lock().await;
+            let app_handle = lock.as_ref().unwrap();
+
+            if let Err(err) = app_handle.emit("stream", "main") {
                 error!("Failed to emit event: {err}");
             }
 
