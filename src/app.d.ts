@@ -31,6 +31,11 @@ declare global {
 		started_at: string;
 	};
 
+	type ChatEvent = {
+		event: 'message';
+		data: ChatMessage;
+	};
+
 	type ChatMessage = {
 		id: number;
 		// Color

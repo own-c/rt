@@ -1,15 +1,14 @@
-use std::{collections::HashMap, str::FromStr, sync::atomic::Ordering};
+use std::{collections::HashMap, sync::atomic::Ordering};
 
 use anyhow::Result;
 use log::error;
 use serde::Serialize;
-use tauri::Url;
 
 use crate::utils;
 
 use super::{
     emote::{self, Emote, TWITCH_EMOTES_CDN},
-    main::{self, LOCAL_API_ADDR, USHER_API},
+    main::{self, USHER_API},
     proxy::{BACKUP_STREAM_URL, MAIN_STREAM_URL, USING_BACKUP},
     queries::{GraphQLQuery, GraphQLResponse, UseLiveQuery, UseLiveResponse},
 };
@@ -226,18 +225,13 @@ pub async fn fetch_stream_info(username: &str, joining_stream: bool) -> Result<S
         let signature = stream_playback.signature;
         let value = stream_playback.value;
 
-        match playlist_url(username, false, &signature, &value) {
-            Ok(url) => {
-                USING_BACKUP.store(false, Ordering::Relaxed);
-                *MAIN_STREAM_URL.lock().await = None;
-                *BACKUP_STREAM_URL.lock().await = None;
-                Some(url)
-            }
-            Err(err) => {
-                error!("Failed to create playlist URL: {err}");
-                None
-            }
-        }
+        let url = playlist_url(username, false, &signature, &value);
+
+        USING_BACKUP.store(false, Ordering::Relaxed);
+        *MAIN_STREAM_URL.lock().await = None;
+        *BACKUP_STREAM_URL.lock().await = None;
+
+        Some(url)
     } else {
         None
     };
@@ -276,31 +270,21 @@ pub async fn fetch_stream_playback(username: &str, backup: bool) -> Result<Strin
     let signature = stream_playback.signature;
     let value = stream_playback.value;
 
-    let url = match playlist_url(username, backup, &signature, &value) {
-        Ok(url) => url,
-        Err(err) => {
-            return Err(format!("Failed to generate playlist URL: {err}"));
-        }
-    };
+    let url = playlist_url(username, backup, &signature, &value);
 
     Ok(url)
 }
 
-fn playlist_url(username: &str, backup: bool, signature: &str, token: &str) -> Result<String> {
-    let mut url = Url::from_str(&format!("http://{LOCAL_API_ADDR}/proxy"))?;
-    let mut to_proxy = format!("{USHER_API}/{username}.m3u8");
+fn playlist_url(username: &str, backup: bool, signature: &str, token: &str) -> String {
+    let mut url = format!("{USHER_API}/{username}.m3u8");
 
     let random_number = utils::random_number(1_000_000, 10_000_000);
 
     if backup {
-        to_proxy.push_str(&format!("?platform=ios&supported_codecs=h264&player=twitchweb&fast_bread=true&p={random_number}&sig={signature}&token={token}"));
+        url.push_str(&format!("?platform=ios&supported_codecs=h264&player=twitchweb&fast_bread=true&p={random_number}&sig={signature}&token={token}"));
     } else {
-        to_proxy.push_str(&format!("?platform=web&supported_codecs=av1,h265,h264&allow_source=true&player=twitchweb&fast_bread=true&p={random_number}&sig={signature}&token={token}"));
+        url.push_str(&format!("?platform=web&supported_codecs=av1,h265,h264&allow_source=true&player=twitchweb&fast_bread=true&p={random_number}&sig={signature}&token={token}"));
     }
 
-    url.query_pairs_mut()
-        .append_pair("username", username)
-        .append_pair("url", to_proxy.as_str());
-
-    Ok(url.to_string())
+    url.to_string()
 }

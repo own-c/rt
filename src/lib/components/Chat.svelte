@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 
 	import { openUrl } from '@tauri-apps/plugin-opener';
+	import { Channel, invoke } from '@tauri-apps/api/core';
 
 	import SimpleBar from 'simplebar';
 
@@ -66,14 +67,12 @@
 		pendingMessages = [];
 		updateScheduled = false;
 
-		const sse = new EventSource(`http://127.0.0.1:3030/chat/${watching.username}`);
+		const reader = new Channel<ChatEvent>();
 
 		let id = 0;
 
-		sse.onmessage = (event: MessageEvent<string>) => {
-			if (event.data) {
-				const data = JSON.parse(event.data);
-
+		reader.onmessage = ({ event, data }) => {
+			if (event === 'message' && data) {
 				data.id = id++;
 
 				if (!autoScroll) {
@@ -99,9 +98,7 @@
 			}
 		};
 
-		return () => {
-			sse.close();
-		};
+		(async () => await invoke('join_chat', { username: watching.username, reader }))();
 	});
 </script>
 

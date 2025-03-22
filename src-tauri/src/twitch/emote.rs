@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Context, Result};
-use axum::http::StatusCode;
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sqlx::Row;
@@ -89,7 +88,7 @@ pub async fn update_user_emotes(username: &str, emotes: HashMap<String, Emote>) 
     Ok(())
 }
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Emote {
     #[serde(rename = "n")]
     pub name: String,
@@ -101,7 +100,7 @@ pub struct Emote {
     pub height: i64,
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize)]
 pub struct BetterTTVResponse {
     #[serde(rename = "channelEmotes")]
     channel_emotes: Vec<BetterTTVEmote>,
@@ -109,7 +108,7 @@ pub struct BetterTTVResponse {
     shared_emotes: Vec<BetterTTVEmote>,
 }
 
-#[derive(Deserialize, Default, Clone)]
+#[derive(Deserialize, Clone)]
 pub struct BetterTTVEmote {
     id: String,
     code: String,
@@ -244,7 +243,7 @@ async fn fetch_and_deserialize<T: DeserializeOwned>(url: &str) -> Result<T> {
 
     let status = response.status();
 
-    if !status.is_success() && status == StatusCode::NOT_FOUND {
+    if !status.is_success() && status == 404 {
         let error_body = response
             .text()
             .await

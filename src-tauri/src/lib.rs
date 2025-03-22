@@ -1,19 +1,16 @@
 use lazy_static::lazy_static;
 use log::LevelFilter;
-use sqlx::SqlitePool;
-use tauri::{AppHandle, Manager};
+use tauri::{
+    async_runtime::{self, Mutex},
+    AppHandle, Manager,
+};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_sql::{Migration, MigrationKind};
-use tokio::sync::Mutex;
-use twitch::user;
+
+use twitch::{chat, proxy, user};
 
 mod twitch;
 mod utils;
-
-#[derive(Default)]
-pub struct AppState {
-    pub emotes_db: Option<SqlitePool>,
-}
 
 lazy_static! {
     // Hold the AppHandle to allow events to be sent to the main window.
@@ -28,11 +25,6 @@ pub fn run() {
 
     let mut builder = tauri::Builder::default();
 
-    #[cfg(desktop)]
-    {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}));
-    }
-
     builder = builder
         .plugin(
             tauri_plugin_sql::Builder::new()
@@ -46,8 +38,8 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::new()
-                .level(LevelFilter::Info)
-                .level_for("reqwest", log::LevelFilter::Debug)
+                .level(LevelFilter::Debug)
+                .level_for("rustls", LevelFilter::Off)
                 .build(),
         )
         .setup(|app| {
@@ -55,6 +47,10 @@ pub fn run() {
             app.deep_link().register("rt")?;
 
             let app_data_path = app.path().app_data_dir()?;
+
+            async_runtime::block_on(async {
+                *APP_HANDLE.lock().await = Some(app.handle().clone());
+            });
 
             twitch::main::setup(&app_data_path)?;
 
@@ -67,6 +63,8 @@ pub fn run() {
             user::fetch_full_user,
             user::fetch_stream_info,
             user::fetch_stream_playback,
+            chat::join_chat,
+            proxy::proxy_stream,
         ])
         .run(tauri::generate_context!())
         .expect("while running tauri application");

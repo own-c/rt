@@ -1,30 +1,17 @@
-use std::{collections::HashMap, convert::Infallible, time::Duration};
+use std::{collections::HashMap, sync::Arc, thread::sleep, time::Duration};
 
-use anyhow::Result;
-use axum::{
-    extract::Path,
-    response::{
-        sse::{Event, KeepAlive},
-        Sse,
-    },
-};
 use futures_util::{SinkExt, StreamExt};
 use lazy_static::lazy_static;
-use log::{error, info};
+use log::error;
 use regex::Regex;
 use serde::Serialize;
-use tauri::async_runtime;
-use tokio::{
-    sync::{broadcast, mpsc},
-    time,
+use tauri::{
+    async_runtime::{self, Mutex},
+    ipc::Channel,
 };
-use tokio_stream::wrappers::BroadcastStream;
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::{
-    twitch::{emote, main::CHAT_STATE},
-    utils,
-};
+use crate::{twitch::emote, utils};
 
 use super::emote::Emote;
 
@@ -42,84 +29,7 @@ lazy_static! {
     ).unwrap();
 }
 
-pub async fn init_irc_connection() -> Result<(mpsc::Sender<String>, broadcast::Sender<String>)> {
-    let (mut ws_stream, _) = tokio_tungstenite::connect_async(WS_CHAT_URL).await?;
-
-    ws_stream.send("CAP REQ :twitch.tv/tags".into()).await?;
-    ws_stream.send("PASS SCHMOOPIIE".into()).await?;
-
-    let random_number = utils::random_number(10_000, 99_999);
-
-    ws_stream
-        .send(format!("NICK justinfan{random_number}").into())
-        .await?;
-
-    let (ws_sender_tx, mut ws_sender_rx) = mpsc::channel::<String>(100);
-    let (ws_broadcast_tx, _) = broadcast::channel::<String>(100);
-
-    async_runtime::spawn({
-        let sender = ws_sender_tx.clone();
-        let broadcast = ws_broadcast_tx.clone();
-
-        async move {
-            let (mut ws_sink, mut ws_stream) = ws_stream.split();
-
-            loop {
-                tokio::select! {
-                    // Process incoming WebSocket messages.
-                    msg_result = ws_stream.next() => {
-                        match msg_result {
-                            Some(Ok(Message::Text(text))) => {
-                                if text.starts_with(PING) {
-                                    if let Err(err) = ws_sink.send(Message::text(PONG)).await {
-                                        error!("Failed to send PONG: {err}");
-                                    } else {
-                                        let sender_clone = sender.clone();
-
-                                        // Ping the server after 60 seconds.
-                                        async_runtime::spawn(async move {
-                                            time::sleep(Duration::from_secs(60)).await;
-
-                                            if let Err(err) = sender_clone.send(PING.into()).await {
-                                                error!("Failed to send scheduled PING: {err}");
-                                            }
-                                        });
-                                    }
-                                } else {
-                                    // Broadcast non-ping messages.
-                                    let _ = broadcast.send(text.to_string());
-                                }
-                            },
-                            // Optionally handle other message types or ignore them.
-                            Some(Ok(_)) => {},
-                            Some(Err(err)) => {
-                                if !err.to_string().is_empty() {
-                                    error!("WebSocket error: {err}");
-                                    break;
-                                }
-                            },
-                            None => break,
-                        }
-                    },
-                    // Process messages coming from sender.
-                    sender_msg = ws_sender_rx.recv() => {
-                        if let Some(msg) = sender_msg {
-                            if let Err(err) = ws_sink.send(msg.into()).await {
-                                error!("Failed to send message: {err}");
-                            }
-                        } else {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    });
-
-    Ok((ws_sender_tx, ws_broadcast_tx))
-}
-
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct ChatMessage {
     #[serde(rename = "c")]
     color: String,
@@ -131,7 +41,7 @@ pub struct ChatMessage {
     fragments: Vec<Fragment>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct Fragment {
     #[serde(rename = "t")]
     r#type: u8,
@@ -141,87 +51,125 @@ struct Fragment {
     emote: Option<Emote>,
 }
 
-pub async fn join_chat(
-    Path(username): Path<String>,
-) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase", tag = "event", content = "data")]
+pub enum ChatEvent {
+    #[serde(rename_all = "camelCase")]
+    Message(ChatMessage),
+}
+
+#[tauri::command]
+pub async fn join_chat(username: String, reader: Channel<ChatEvent>) {
     let user_emotes = emote::query_user_emotes(&username)
         .await
         .unwrap_or_default();
 
-    let mut state = CHAT_STATE.lock().await;
-    let state = state.as_mut().unwrap();
-    let sender = state.sender.clone();
-
-    if let Some(current) = &state.current_chat {
-        if current != &username {
-            info!("Leaving '{current}' chat");
-            if let Err(err) = sender.send(format!("PART #{current}")).await {
-                error!("Failed to send PART for {current}: {err}");
-            }
-
-            state.current_chat = None;
-        }
-    }
-
-    info!("Joining '{username}' chat");
-    match sender.send(format!("JOIN #{username}")).await {
-        Ok(()) => {
-            state.current_chat = Some(username.clone());
-        }
+    let mut ws_stream = match tokio_tungstenite::connect_async(WS_CHAT_URL).await {
+        Ok((ws_stream, _)) => ws_stream,
         Err(err) => {
-            error!("Failed to #JOIN: {username}: {err}");
+            error!("Failed to connect to chat: {err}");
+            return;
         }
+    };
+
+    if let Err(err) = ws_stream.send("CAP REQ :twitch.tv/tags".into()).await {
+        error!("Failed to send CAP REQ: {err}");
+        return;
     }
 
-    let rx = state.receiver.subscribe();
+    if let Err(err) = ws_stream.send("PASS SCHMOOPIIE".into()).await {
+        error!("Failed to send PASS: {err}");
+        return;
+    }
 
-    let stream = BroadcastStream::new(rx).filter_map(move |result| {
-        let user_emotes = user_emotes.clone();
+    let random_number = utils::random_number(10_000, 99_999);
 
-        async move {
-            match result {
-                Ok(irc) => {
-                    if let Some(caps) = IRC_CHAT_REG.captures(&irc) {
-                        if caps.len() < 5 {
-                            return None;
-                        }
+    if let Err(err) = ws_stream
+        .send(format!("NICK justinfan{random_number}").into())
+        .await
+    {
+        error!("Failed to send NICK: {err}");
+        return;
+    }
 
-                        let color = caps.name("color")?.as_str().to_string();
-                        let display_name = caps.name("display_name")?.as_str().to_string();
-                        let first_msg = caps.name("first_msg")?.as_str() != "0";
-                        let content = caps.name("message")?.as_str().trim_end();
+    if let Err(err) = ws_stream.send(format!("JOIN #{username}").into()).await {
+        error!("Failed to send JOIN: {err}");
+        return;
+    }
 
-                        if display_name.is_empty() || content.is_empty() {
-                            return None;
-                        }
+    let (ws_sink, mut ws_stream) = ws_stream.split();
 
-                        let fragments = parse_chat_fragments(content, &user_emotes);
-                        if fragments.is_empty() {
-                            return None;
-                        }
+    let ws_sink = Arc::new(Mutex::new(ws_sink));
 
-                        let chat_message = ChatMessage {
-                            color,
-                            name: display_name,
-                            first_msg,
-                            fragments,
-                        };
+    while let Some(Ok(Message::Text(text))) = ws_stream.next().await {
+        if text.starts_with(PING) {
+            let ws_sink = Arc::clone(&ws_sink);
 
-                        let json = serde_json::to_string(&chat_message).ok()?;
-                        Some(Ok(Event::default().data(json)))
-                    } else {
-                        None
-                    }
+            if let Err(err) = ws_sink.lock().await.send(Message::text(PONG)).await {
+                error!("Failed to send PONG: {err}");
+                continue;
+            }
+
+            // Ping the server after 60 seconds
+            let ws_sink = Arc::clone(&ws_sink);
+
+            async_runtime::spawn(async move {
+                sleep(Duration::from_secs(60));
+
+                if let Err(err) = ws_sink.lock().await.send(PING.into()).await {
+                    error!("Failed to send scheduled PING: {err}");
                 }
-                Err(err) => {
-                    error!("Error while receiving broadcast message: {err}");
-                    None
-                }
+            });
+
+            continue;
+        }
+
+        if let Some(caps) = IRC_CHAT_REG.captures(&text) {
+            if caps.len() < 5 {
+                continue;
+            }
+
+            let color = if let Some(color) = caps.name("color") {
+                color.as_str().to_string()
+            } else {
+                String::new()
+            };
+
+            let display_name = if let Some(display_name) = caps.name("display_name") {
+                display_name.as_str().to_string()
+            } else {
+                continue;
+            };
+
+            let first_msg = if let Some(first_msg) = caps.name("first_msg") {
+                first_msg.as_str() != "0"
+            } else {
+                false
+            };
+
+            let content = if let Some(content) = caps.name("message") {
+                content.as_str().trim_end()
+            } else {
+                continue;
+            };
+
+            let fragments = parse_chat_fragments(content, &user_emotes);
+            if fragments.is_empty() {
+                continue;
+            }
+
+            let chat_message = ChatMessage {
+                color,
+                name: display_name,
+                first_msg,
+                fragments,
+            };
+
+            if let Err(err) = reader.send(ChatEvent::Message(chat_message)) {
+                error!("Failed to send chat message: {err}");
             }
         }
-    });
-
-    Sse::new(stream).keep_alive(KeepAlive::default())
+    }
 }
 
 fn parse_chat_fragments(

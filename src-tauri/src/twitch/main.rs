@@ -1,26 +1,16 @@
 use std::{path::Path, time::Duration};
 
 use anyhow::{anyhow, Context, Result};
-use axum::{
-    http::{HeaderMap, HeaderValue},
-    routing::get,
-    Router,
-};
 use lazy_static::lazy_static;
-use log::{error, info};
+use log::error;
 use serde::{de::DeserializeOwned, Serialize};
 use sqlx::SqlitePool;
-use tauri::async_runtime;
-use tauri_plugin_http::reqwest::{redirect::Policy, Client};
-use tokio::{
-    net::TcpListener,
-    sync::{broadcast, mpsc, Mutex},
+use tauri::async_runtime::{self, Mutex};
+use tauri_plugin_http::reqwest::{
+    header::{HeaderMap, HeaderValue},
+    redirect::Policy,
+    Client,
 };
-use tower_http::cors::{Any, CorsLayer};
-
-use crate::twitch::{chat, proxy};
-
-pub const LOCAL_API_ADDR: &str = "127.0.0.1:3030";
 
 pub const USHER_API: &str = "https://usher.ttvnw.net/api/channel/hls";
 const GRAPHQL_API: &str = "https://gql.twitch.tv/gql";
@@ -28,17 +18,7 @@ const BOXART_CDN: &str = "https://static-cdn.jtvnw.net/ttv-boxart";
 
 pub const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 
-pub struct ChatState {
-    pub current_chat: Option<String>,
-    /// For sending messages to the chat websocket.
-    pub sender: mpsc::Sender<String>,
-    /// For receiving messages from the websocket.
-    pub receiver: broadcast::Sender<String>,
-}
-
 lazy_static! {
-    pub static ref CHAT_STATE: Mutex<Option<ChatState>> = Mutex::new(None);
-
     pub static ref EMOTES_DB: Mutex<Option<SqlitePool>> = Mutex::new(None);
 
     pub static ref HTTP_CLIENT: Client = {
@@ -68,48 +48,14 @@ lazy_static! {
 }
 
 pub fn setup(app_data_path: &Path) -> Result<()> {
-    async_runtime::spawn(async { start_api_server().await });
-
     async_runtime::block_on(async {
         let emotes_db_path = app_data_path.join("emotes.db");
         let emotes_db = SqlitePool::connect(emotes_db_path.to_str().unwrap()).await?;
 
         *EMOTES_DB.lock().await = Some(emotes_db);
 
-        init_irc_chat().await
-    })?;
-
-    Ok(())
-}
-
-async fn init_irc_chat() -> Result<()> {
-    let (ws_sender, ws_receiver) = chat::init_irc_connection().await?;
-
-    let chat = Some(ChatState {
-        current_chat: None,
-        sender: ws_sender,
-        receiver: ws_receiver,
-    });
-
-    *CHAT_STATE.lock().await = chat;
-
-    info!("Initialized chat state");
-    Ok(())
-}
-
-async fn start_api_server() -> Result<()> {
-    let cors_layer = CorsLayer::new().allow_origin(Any).allow_methods(Any);
-
-    let listener = TcpListener::bind(LOCAL_API_ADDR).await?;
-
-    let app = Router::new()
-        .route("/chat/{username}", get(chat::join_chat))
-        .route("/proxy", get(proxy::proxy_stream))
-        .layer(cors_layer);
-
-    info!("Starting API server");
-    axum::serve(listener, app).await?;
-    Ok(())
+        Ok(())
+    })
 }
 
 pub async fn send_query<RequestJson, ResponseJson>(body: RequestJson) -> Result<ResponseJson>

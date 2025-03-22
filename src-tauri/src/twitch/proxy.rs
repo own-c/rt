@@ -1,26 +1,15 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{anyhow, Result};
-use axum::{
-    body::Body,
-    extract::Query,
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
-use bytes::Bytes;
 use lazy_static::lazy_static;
 use log::{error, info};
 use regex::Regex;
-use serde::Deserialize;
-use tauri::{Emitter, Url};
-use tokio::sync::Mutex;
+use tauri::async_runtime::Mutex;
+use tauri::Emitter;
 
 use crate::APP_HANDLE;
 
-use super::{
-    main::{LOCAL_API_ADDR, PROXY_HTTP_CLIENT},
-    user,
-};
+use super::{main::PROXY_HTTP_CLIENT, user};
 
 lazy_static! {
     // These are public so that they can be reset when changing streams in the tauri commands.
@@ -31,36 +20,28 @@ lazy_static! {
     static ref URL_REGEX: Regex = Regex::new(r"^(https?://[^\s]+)").unwrap();
 }
 
-#[derive(Deserialize)]
-pub struct ProxyStreamQuery {
-    url: String,
-    username: String,
-}
-
-pub async fn proxy_stream(Query(query): Query<ProxyStreamQuery>) -> impl IntoResponse {
-    let url = query.url;
-    let username = query.username;
-
+#[tauri::command]
+pub async fn proxy_stream(username: String, url: String) -> Result<String, String> {
     if url.is_empty() {
-        error!("No URL provided");
-        return (StatusCode::BAD_REQUEST, Response::default());
+        return Err(String::from("No URL provided"));
     }
 
     let response = match PROXY_HTTP_CLIENT.get(&url).send().await {
         Ok(resp) => resp,
         Err(err) => {
-            error!("Proxying request: {err}");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Response::new(Body::default()),
-            );
+            return Err(format!("Failed to proxy request: {err}"));
         }
     };
 
-    let body_bytes = response.bytes().await.unwrap_or(Bytes::new());
+    let body_bytes = match response.bytes().await {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            return Err(format!("Failed to read response body: {err}"));
+        }
+    };
 
     let (ad_detected, mut playlist, is_master_playlist) =
-        process_m3u8(&username, &url, &String::from_utf8_lossy(&body_bytes));
+        process_m3u8(&String::from_utf8_lossy(&body_bytes));
 
     let using_backup = USING_BACKUP.load(Ordering::Relaxed);
 
@@ -132,13 +113,10 @@ pub async fn proxy_stream(Query(query): Query<ProxyStreamQuery>) -> impl IntoRes
         }
     }
 
-    let new_response = Response::new(Body::from(playlist));
-
-    (StatusCode::OK, new_response)
+    Ok(playlist)
 }
 
-fn process_m3u8(username: &str, base_url: &str, playlist: &str) -> (bool, String, bool) {
-    let base_url = Url::parse(base_url).ok();
+fn process_m3u8(playlist: &str) -> (bool, String, bool) {
     let mut result_lines = Vec::new();
     let mut ad_detected = false;
     let mut is_master_playlist = false;
@@ -150,25 +128,6 @@ fn process_m3u8(username: &str, base_url: &str, playlist: &str) -> (bool, String
 
         if line.contains("stitched-ad") {
             ad_detected = true;
-        }
-
-        // Check if line looks like a URL or a non-comment non-empty line
-        if URL_REGEX.is_match(line) || (!line.starts_with('#') && !line.is_empty()) {
-            if let Some(base) = &base_url {
-                if let Ok(abs_url) = base.join(line) {
-                    // Only add the proxy prefix if the URL contains .m3u8
-                    if abs_url.as_str().to_lowercase().contains(".m3u8") {
-                        result_lines.push(format!(
-                            "http://{LOCAL_API_ADDR}/proxy?username={username}&url={}",
-                            urlencoding::encode(abs_url.as_str())
-                        ));
-                    } else {
-                        result_lines.push(abs_url.to_string());
-                    }
-
-                    continue;
-                }
-            }
         }
 
         result_lines.push(line.to_string());
@@ -198,7 +157,7 @@ async fn fetch_main_stream(username: &str) -> Result<String> {
     };
 
     let body = fetch_playlist_text(&main_url).await?;
-    let (ad_detected, processed_playlist, _) = process_m3u8(username, &main_url, &body);
+    let (ad_detected, processed_playlist, _) = process_m3u8(&body);
 
     if ad_detected {
         USING_BACKUP.store(true, Ordering::Relaxed);
@@ -217,14 +176,7 @@ async fn fetch_backup_stream_url(username: &str) -> Result<String> {
         }
     };
 
-    let backup_url = url.replace(
-        format!("http://{LOCAL_API_ADDR}/proxy?username={username}&url=").as_str(),
-        "",
-    );
-
-    let decoded_url = urlencoding::decode(&backup_url)?.to_string();
-
-    let body = fetch_playlist_text(&decoded_url).await?;
+    let body = fetch_playlist_text(&url).await?;
 
     let variant_playlist_url = body
         .lines()
