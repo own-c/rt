@@ -12,11 +12,10 @@ use tauri_plugin_http::reqwest::{
     Client,
 };
 
-pub const USHER_API: &str = "https://usher.ttvnw.net/api/channel/hls";
 const GRAPHQL_API: &str = "https://gql.twitch.tv/gql";
 const BOXART_CDN: &str = "https://static-cdn.jtvnw.net/ttv-boxart";
 
-pub const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
+const CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 
 lazy_static! {
     pub static ref EMOTES_DB: Mutex<Option<SqlitePool>> = Mutex::new(None);
@@ -41,7 +40,7 @@ lazy_static! {
     pub static ref PROXY_HTTP_CLIENT: Client = Client::builder()
        .use_rustls_tls()
        .https_only(true)
-       .tcp_keepalive(Duration::from_secs(5))
+       .tcp_keepalive(Duration::from_secs(10))
        .gzip(true)
        .build()
        .unwrap();

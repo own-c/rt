@@ -4,8 +4,7 @@ use anyhow::{anyhow, Result};
 use lazy_static::lazy_static;
 use log::{error, info};
 use regex::Regex;
-use tauri::async_runtime::Mutex;
-use tauri::Emitter;
+use tauri::{async_runtime::Mutex, Emitter};
 
 use crate::APP_HANDLE;
 
@@ -21,12 +20,12 @@ lazy_static! {
 }
 
 #[tauri::command]
-pub async fn proxy_stream(username: String, url: String) -> Result<String, String> {
+pub async fn proxy_stream(username: &str, url: &str) -> Result<String, String> {
     if url.is_empty() {
         return Err(String::from("No URL provided"));
     }
 
-    let response = match PROXY_HTTP_CLIENT.get(&url).send().await {
+    let response = match PROXY_HTTP_CLIENT.get(url).send().await {
         Ok(resp) => resp,
         Err(err) => {
             return Err(format!("Failed to proxy request: {err}"));
@@ -49,7 +48,7 @@ pub async fn proxy_stream(username: String, url: String) -> Result<String, Strin
         {
             let mut main_stream = MAIN_STREAM_URL.lock().await;
             if main_stream.is_none() {
-                *main_stream = Some(url);
+                *main_stream = Some(url.to_string());
             }
         }
 
@@ -75,7 +74,7 @@ pub async fn proxy_stream(username: String, url: String) -> Result<String, Strin
                 if let Some(url) = backup_url_guard.clone() {
                     url
                 } else {
-                    let url = fetch_backup_stream_url(&username).await.unwrap_or_default();
+                    let url = fetch_backup_stream_url(username).await.unwrap_or_default();
                     *backup_url_guard = Some(url.clone());
                     url
                 }
@@ -100,7 +99,7 @@ pub async fn proxy_stream(username: String, url: String) -> Result<String, Strin
                 error!("Failed to emit event: {err}");
             }
 
-            match fetch_main_stream(&username).await {
+            match fetch_main_stream(username).await {
                 Ok(pl) => playlist = pl,
                 Err(err) => {
                     error!("Failed to fetch main stream: {err}");

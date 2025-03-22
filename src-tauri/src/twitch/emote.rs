@@ -11,6 +11,18 @@ pub const TWITCH_EMOTES_CDN: &str = "https://static-cdn.jtvnw.net/emoticons/v2";
 const SEVENTV_API: &str = "https://7tv.io/v3";
 const BETTERTV_API: &str = "https://api.betterttv.net/3";
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Emote {
+    #[serde(rename = "n")]
+    pub name: String,
+    #[serde(rename = "u")]
+    pub url: String,
+    #[serde(rename = "w")]
+    pub width: i64,
+    #[serde(rename = "h")]
+    pub height: i64,
+}
+
 pub async fn query_user_emotes(username: &str) -> Result<HashMap<String, Emote>, String> {
     let lock = EMOTES_DB.lock().await;
     let db = lock.as_ref().expect("Database not initialized");
@@ -86,18 +98,6 @@ pub async fn update_user_emotes(username: &str, emotes: HashMap<String, Emote>) 
 
     tx.commit().await?;
     Ok(())
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Emote {
-    #[serde(rename = "n")]
-    pub name: String,
-    #[serde(rename = "u")]
-    pub url: String,
-    #[serde(rename = "w")]
-    pub width: i64,
-    #[serde(rename = "h")]
-    pub height: i64,
 }
 
 #[derive(Deserialize)]

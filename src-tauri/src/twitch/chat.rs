@@ -59,27 +59,22 @@ pub enum ChatEvent {
 }
 
 #[tauri::command]
-pub async fn join_chat(username: String, reader: Channel<ChatEvent>) {
-    let user_emotes = emote::query_user_emotes(&username)
-        .await
-        .unwrap_or_default();
+pub async fn join_chat(username: &str, reader: Channel<ChatEvent>) -> Result<(), String> {
+    let user_emotes = emote::query_user_emotes(username).await.unwrap_or_default();
 
     let mut ws_stream = match tokio_tungstenite::connect_async(WS_CHAT_URL).await {
         Ok((ws_stream, _)) => ws_stream,
         Err(err) => {
-            error!("Failed to connect to chat: {err}");
-            return;
+            return Err(format!("Failed to connect to chat: {err}"));
         }
     };
 
     if let Err(err) = ws_stream.send("CAP REQ :twitch.tv/tags".into()).await {
-        error!("Failed to send CAP REQ: {err}");
-        return;
+        return Err(format!("Failed to send CAP REQ: {err}"));
     }
 
     if let Err(err) = ws_stream.send("PASS SCHMOOPIIE".into()).await {
-        error!("Failed to send PASS: {err}");
-        return;
+        return Err(format!("Failed to send PASS: {err}"));
     }
 
     let random_number = utils::random_number(10_000, 99_999);
@@ -88,13 +83,11 @@ pub async fn join_chat(username: String, reader: Channel<ChatEvent>) {
         .send(format!("NICK justinfan{random_number}").into())
         .await
     {
-        error!("Failed to send NICK: {err}");
-        return;
+        return Err(format!("Failed to send NICK: {err}"));
     }
 
     if let Err(err) = ws_stream.send(format!("JOIN #{username}").into()).await {
-        error!("Failed to send JOIN: {err}");
-        return;
+        return Err(format!("Failed to send JOIN: {err}"));
     }
 
     let (ws_sink, mut ws_stream) = ws_stream.split();
@@ -170,6 +163,8 @@ pub async fn join_chat(username: String, reader: Channel<ChatEvent>) {
             }
         }
     }
+
+    Ok(())
 }
 
 fn parse_chat_fragments(

@@ -19,10 +19,6 @@ lazy_static! {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .expect("Failed to install rustls crypto provider");
-
     let mut builder = tauri::Builder::default();
 
     builder = builder

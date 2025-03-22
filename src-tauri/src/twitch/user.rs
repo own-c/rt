@@ -8,10 +8,12 @@ use crate::utils;
 
 use super::{
     emote::{self, Emote, TWITCH_EMOTES_CDN},
-    main::{self, USHER_API},
+    main,
     proxy::{BACKUP_STREAM_URL, MAIN_STREAM_URL, USING_BACKUP},
     queries::{GraphQLQuery, GraphQLResponse, UseLiveQuery, UseLiveResponse},
 };
+
+const USHER_API: &str = "https://usher.ttvnw.net/api/channel/hls";
 
 #[derive(Serialize, Debug)]
 pub struct LiveNow {
@@ -20,7 +22,7 @@ pub struct LiveNow {
 }
 
 #[tauri::command]
-pub async fn fetch_live_now(usernames: Vec<String>) -> Result<HashMap<String, LiveNow>, String> {
+pub async fn fetch_live_now(usernames: Vec<&str>) -> Result<HashMap<String, LiveNow>, String> {
     if usernames.is_empty() {
         return Err(String::from("No usernames provided"));
     }
@@ -32,7 +34,7 @@ pub async fn fetch_live_now(usernames: Vec<String>) -> Result<HashMap<String, Li
             continue;
         }
 
-        query.push(UseLiveQuery::new(&username));
+        query.push(UseLiveQuery::new(username));
     }
 
     let response: Vec<UseLiveResponse> = match main::send_query(query).await {
