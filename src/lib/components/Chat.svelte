@@ -3,6 +3,7 @@
 
 	import { openUrl } from '@tauri-apps/plugin-opener';
 	import { Channel, invoke } from '@tauri-apps/api/core';
+	import { emit } from '@tauri-apps/api/event';
 
 	import SimpleBar from 'simplebar';
 
@@ -98,7 +99,11 @@
 			}
 		};
 
-		(async () => await invoke('join_chat', { username: watching.username, reader }))();
+		invoke('join_chat', { username: watching.username, reader });
+
+		return () => {
+			emit('leave_chat', watching.username);
+		};
 	});
 </script>
 

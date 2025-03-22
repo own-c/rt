@@ -1,4 +1,12 @@
-use std::{collections::HashMap, sync::Arc, thread::sleep, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    thread::sleep,
+    time::Duration,
+};
 
 use futures_util::{SinkExt, StreamExt};
 use lazy_static::lazy_static;
@@ -8,6 +16,7 @@ use serde::Serialize;
 use tauri::{
     async_runtime::{self, Mutex},
     ipc::Channel,
+    AppHandle, Listener,
 };
 use tokio_tungstenite::tungstenite::Message;
 
@@ -59,7 +68,11 @@ pub enum ChatEvent {
 }
 
 #[tauri::command]
-pub async fn join_chat(username: &str, reader: Channel<ChatEvent>) -> Result<(), String> {
+pub async fn join_chat(
+    app_handle: AppHandle,
+    username: &str,
+    reader: Channel<ChatEvent>,
+) -> Result<(), String> {
     let user_emotes = emote::query_user_emotes(username).await.unwrap_or_default();
 
     let mut ws_stream = match tokio_tungstenite::connect_async(WS_CHAT_URL).await {
@@ -94,7 +107,19 @@ pub async fn join_chat(username: &str, reader: Channel<ChatEvent>) -> Result<(),
 
     let ws_sink = Arc::new(Mutex::new(ws_sink));
 
+    let is_cancelled = Arc::new(AtomicBool::new(false));
+    let cancel_flag = Arc::clone(&is_cancelled);
+
+    let listener = app_handle.listen("leave_chat", move |_event| {
+        cancel_flag.store(true, Ordering::SeqCst);
+    });
+
     while let Some(Ok(Message::Text(text))) = ws_stream.next().await {
+        if is_cancelled.load(Ordering::Relaxed) {
+            break;
+        }
+
+        // Handle PING/PONG messages
         if text.starts_with(PING) {
             let ws_sink = Arc::clone(&ws_sink);
 
@@ -103,9 +128,8 @@ pub async fn join_chat(username: &str, reader: Channel<ChatEvent>) -> Result<(),
                 continue;
             }
 
-            // Ping the server after 60 seconds
+            // Schedule a PING after 60 seconds
             let ws_sink = Arc::clone(&ws_sink);
-
             async_runtime::spawn(async move {
                 sleep(Duration::from_secs(60));
 
@@ -163,6 +187,8 @@ pub async fn join_chat(username: &str, reader: Channel<ChatEvent>) -> Result<(),
             }
         }
     }
+
+    app_handle.unlisten(listener);
 
     Ok(())
 }

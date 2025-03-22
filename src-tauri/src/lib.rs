@@ -36,6 +36,9 @@ pub fn run() {
             tauri_plugin_log::Builder::new()
                 .level(LevelFilter::Debug)
                 .level_for("rustls", LevelFilter::Off)
+                .level_for("h2", LevelFilter::Off)
+                .level_for("hyper_util", LevelFilter::Off)
+                .level_for("sqlx", LevelFilter::Info)
                 .build(),
         )
         .setup(|app| {
