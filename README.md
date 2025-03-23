@@ -61,7 +61,7 @@ Logs are stored in the following locations:
 ## TODO
 
 - Maybe cache users/emotes/feeds in the AppState, also maybe return them when possible in the same request instead of emitting an update event.
-- Add Youtube as a frontend, needs:
+- Add YouTube as a frontend, needs:
   - Fully working multi window support.
   - Finish reworking the UI.
   - Reintroduce features removed since the rework to allow for more than one window and frontend.

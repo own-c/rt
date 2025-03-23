@@ -6,12 +6,12 @@ use tauri::{
     Manager,
 };
 use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_plugin_sql::{Migration, MigrationKind};
 
-mod feeds;
+mod feed;
+mod migration;
 mod twitch;
-mod users;
-mod utils;
+mod user;
+mod util;
 mod window;
 
 pub struct AppState {
@@ -43,9 +43,9 @@ pub fn run() {
     builder = builder
         .plugin(
             tauri_plugin_sql::Builder::new()
-                .add_migrations("sqlite:users.db", users_migrations())
-                .add_migrations("sqlite:feeds.db", feeds_migrations())
-                .add_migrations("sqlite:emotes.db", emotes_migrations())
+                .add_migrations("sqlite:users.db", migration::users_migrations())
+                .add_migrations("sqlite:feeds.db", migration::feeds_migrations())
+                .add_migrations("sqlite:emotes.db", migration::emotes_migrations())
                 .build(),
         )
         .plugin(tauri_plugin_http::init())
@@ -108,11 +108,11 @@ pub fn run() {
 
     builder
         .invoke_handler(tauri::generate_handler![
-            users::get_users,
-            users::add_user,
-            users::remove_user,
-            feeds::get_feed,
-            feeds::refresh_feed,
+            user::get_users,
+            user::add_user,
+            user::remove_user,
+            feed::get_feed,
+            feed::refresh_feed,
             window::open_new_window,
             twitch::stream::fetch_stream_playback,
             twitch::proxy::proxy_stream,
@@ -120,51 +120,4 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("while running tauri application");
-}
-
-fn users_migrations() -> Vec<Migration> {
-    vec![Migration {
-        version: 1,
-        description: "create_users_table",
-        sql: r"
-                CREATE TABLE IF NOT EXISTS twitch (
-                    id TEXT,
-                    username TEXT NOT NULL PRIMARY KEY,
-                    avatar BLOB
-                );
-            ",
-        kind: MigrationKind::Up,
-    }]
-}
-
-fn feeds_migrations() -> Vec<Migration> {
-    vec![Migration {
-        version: 1,
-        description: "create_feeds_table",
-        sql: r"
-                CREATE TABLE IF NOT EXISTS twitch (
-                    username TEXT NOT NULL PRIMARY KEY,
-                    started_at TEXT
-                );
-            ",
-        kind: MigrationKind::Up,
-    }]
-}
-
-fn emotes_migrations() -> Vec<Migration> {
-    vec![Migration {
-        version: 1,
-        description: "create_emotes_table",
-        sql: r"
-                CREATE TABLE IF NOT EXISTS twitch (
-                    username TEXT NOT NULL,
-                    name TEXT NOT NULL,
-                    url TEXT,
-                    width INTEGER,
-                    height INTEGER,
-                    PRIMARY KEY (username, name)
-                );
-            ",
-        kind: MigrationKind::Up,
-    }]
 }

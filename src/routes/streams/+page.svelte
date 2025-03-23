@@ -45,7 +45,7 @@
 		{#each feed as live_now, index (index)}
 			<div>
 				<a
-					href={`/watch/twitch?username=${live_now.username}`}
+					href={`/streams/watch?username=${live_now.username}`}
 					class="flex flex-col items-center hover:bg-neutral-800 rounded-md cursor-pointer"
 				>
 					<img

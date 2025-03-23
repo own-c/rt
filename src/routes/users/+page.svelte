@@ -62,7 +62,7 @@
 	<div>
 		<select bind:value={filter}>
 			<option value="twitch" class="bg-neutral-900">Twitch</option>
-			<option value="youtube" class="bg-neutral-900">Youtube</option>
+			<option value="youtube" class="bg-neutral-900">YouTube</option>
 		</select>
 	</div>
 

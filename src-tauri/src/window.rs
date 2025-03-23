@@ -35,7 +35,7 @@ pub fn open_url(app_handle: AppHandle, urls: &[String]) -> Result<()> {
         return Err(anyhow!("Username was empty after parsing URL"));
     }
 
-    let url = format!("/watch/twitch?username={username}");
+    let url = format!("/streams/watch?username={username}");
 
     open_new_window(app_handle, url);
 

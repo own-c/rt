@@ -5,7 +5,7 @@ use tauri::{async_runtime::Mutex, AppHandle, Emitter, State};
 
 use crate::{
     twitch::{self, stream::LiveNow},
-    users::Platform,
+    user::Platform,
     AppState,
 };
 

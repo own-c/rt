@@ -20,7 +20,7 @@ use tauri::{
 };
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::{twitch::emote, utils, AppState};
+use crate::{twitch::emote, util, AppState};
 
 use super::emote::Emote;
 
@@ -98,7 +98,7 @@ pub async fn join_chat(
         return Err(format!("Failed to send PASS: {err}"));
     }
 
-    let random_number = utils::random_number(10_000, 99_999);
+    let random_number = util::random_number(10_000, 99_999);
 
     if let Err(err) = ws_stream
         .send(format!("NICK justinfan{random_number}").into())

@@ -6,7 +6,7 @@ use log::error;
 use super::{
     emote::{self, Emote, TWITCH_EMOTES_CDN},
     main,
-    queries::{GraphQLQuery, GraphQLResponse},
+    query::{GraphQLQuery, GraphQLResponse},
 };
 
 pub struct TwitchUser {

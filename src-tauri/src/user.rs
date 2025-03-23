@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{prelude::Type, Pool, Row, Sqlite};
 use tauri::{async_runtime::Mutex, AppHandle, Emitter, State};
 
-use crate::{twitch, utils, AppState};
+use crate::{twitch, util, AppState};
 
 #[derive(Serialize, Deserialize)]
 pub struct User {
@@ -20,7 +20,7 @@ pub struct User {
 #[derive(Serialize, Deserialize, Clone, PartialEq, Type)]
 pub enum Platform {
     #[serde(rename = "youtube")]
-    Youtube,
+    YouTube,
     #[serde(rename = "twitch")]
     Twitch,
 }
@@ -28,7 +28,7 @@ pub enum Platform {
 impl Display for Platform {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Platform::Youtube => write!(f, "youtube"),
+            Platform::YouTube => write!(f, "youtube"),
             Platform::Twitch => write!(f, "twitch"),
         }
     }
@@ -45,7 +45,7 @@ pub async fn get_users(
     let users = match platform {
         Some(platform) => get_users_for_platform(users_db, platform).await,
         None => {
-            // TODO: Merge users from all platforms when adding Youtube
+            // TODO: Merge users from all platforms when adding YouTube
             get_users_for_platform(users_db, Platform::Twitch).await
         }
     };
@@ -81,7 +81,7 @@ pub async fn add_user(
             error!("Failed to save emotes for user '{username}': {err}");
         }
 
-        let avatar = match utils::download_image(&user.avatar).await {
+        let avatar = match util::download_image(&user.avatar).await {
             Ok(bytes) => bytes,
             Err(err) => {
                 return Err(format!(

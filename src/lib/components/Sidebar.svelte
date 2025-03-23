@@ -9,26 +9,28 @@
 
 	let loading = $state(false);
 
-	let inputEl = $state() as HTMLInputElement;
-	let username = $state('');
-	let platform = $state('twitch');
-	let showInput = $state(false);
+	let showAddInput = $state(false);
+	let addInputEl = $state() as HTMLInputElement;
+	let addInputValue = $state('');
+	let addInputPlatform = $state('twitch');
 
 	async function toggleUserInput() {
-		showInput = !showInput;
-		username = '';
+		showAddInput = !showAddInput;
+		addInputValue = '';
 
 		await tick();
-		if (inputEl) inputEl.focus();
+		if (addInputEl) addInputEl.focus();
 	}
 
 	async function refreshFeed() {
 		loading = true;
 
+		const platform = currentView.id === 'streams' ? 'twitch' : 'youtube';
+
 		try {
-			await invoke('refresh_feed', { platform: currentView.id });
+			await invoke('refresh_feed', { platform });
 		} catch (err) {
-			error(`Error refreshing ${currentView.name} feed`, err as string);
+			error(`Error refreshing ${platform} feed`, err as string);
 			return;
 		}
 
@@ -37,7 +39,7 @@
 	}
 
 	async function addUser(username: string) {
-		showInput = false;
+		showAddInput = false;
 		loading = true;
 
 		if (!username) {
@@ -46,7 +48,7 @@
 		}
 
 		try {
-			await invoke('add_user', { username: username, platform: platform });
+			await invoke('add_user', { username: username, platform: addInputPlatform });
 		} catch (err) {
 			error(`Error adding user '${username}'`, err as string);
 			return;
@@ -57,20 +59,26 @@
 	}
 
 	function handleKeyDown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && showInput) {
-			showInput = false;
+		if (event.key === 'Escape' && showAddInput) {
+			showAddInput = false;
+		}
+	}
+
+	async function openNewWindow() {
+		try {
+			await invoke('open_new_window', { url: `/${currentView.id}` });
+		} catch (err) {
+			error('Error opening new window', err as string);
 		}
 	}
 </script>
 
-<aside
-	class="flex flex-col items-center h-full w-12 min-w-12 bg-neutral-800 gap-2 user-select-none flex-shrink-0"
->
+<aside class="flex flex-col items-center w-12 min-w-12 bg-neutral-800 gap-2 user-select-none">
 	<div class="flex flex-col items-center w-full">
 		<button
 			aria-label="Videos"
 			title="Videos"
-			onclick={() => changeView('youtube')}
+			onclick={() => changeView('videos')}
 			class="flex flex-col items-center cursor-pointer hover:bg-neutral-600 w-full py-2"
 		>
 			<svg xmlns="http://www.w3.org/2000/svg" width="1.5rem" height="1.5rem" viewBox="0 0 2048 2048"
@@ -84,7 +92,7 @@
 		<button
 			aria-label="Streams"
 			title="Streams"
-			onclick={() => changeView('twitch')}
+			onclick={() => changeView('streams')}
 			class="flex flex-col items-center cursor-pointer hover:bg-neutral-600 w-full py-2"
 		>
 			<svg xmlns="http://www.w3.org/2000/svg" width="1.5rem" height="1.5rem" viewBox="0 0 2048 2048"
@@ -110,10 +118,10 @@
 		</button>
 	</div>
 
-	<hr class="border-gray-700 w-full" />
+	<hr class="border-gray-600 w-full" />
 
-	<div class="flex flex-col items-center w-full">
-		{#if currentView.id == 'users'}
+	<div class="flex flex-col items-center w-full h-[calc(100%-10.6rem)]">
+		{#if currentView.name === 'Users'}
 			<button
 				aria-label="Add user"
 				title="Add user"
@@ -132,18 +140,18 @@
 					/></svg
 				>
 
-				{#if showInput}
+				{#if showAddInput}
 					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 					<form
-						onsubmit={async () => await addUser(username)}
+						onsubmit={async () => await addUser(addInputValue)}
 						onclick={(e) => e.stopPropagation()}
-						onfocusin={() => (showInput = true)}
+						onfocusin={() => (showAddInput = true)}
 						onkeydown={handleKeyDown}
 						class="absolute flex gap-1 items-center top-0 left-12 z-50 bg-gray-800 p-2 rounded-md shadow-md"
 					>
 						<input
-							bind:this={inputEl}
-							bind:value={username}
+							bind:this={addInputEl}
+							bind:value={addInputValue}
 							type="text"
 							placeholder="Channel name"
 							spellcheck="false"
@@ -151,7 +159,10 @@
 							class="px-2 py-1 w-32 bg-gray-700 rounded-md outline-none"
 						/>
 
-						<select bind:value={platform} class="px-2 py-1 bg-gray-700 rounded-md outline-none">
+						<select
+							bind:value={addInputPlatform}
+							class="px-2 py-1 bg-gray-700 rounded-md outline-none"
+						>
 							<option value="twitch">Twitch</option>
 							<option value="youtube">YouTube</option>
 						</select>
@@ -160,7 +171,7 @@
 			</button>
 		{/if}
 
-		{#if currentView.id !== 'users'}
+		{#if currentView.name !== 'Users'}
 			<button
 				aria-label="Refresh"
 				title="Refresh"
@@ -183,5 +194,21 @@
 				>
 			</button>
 		{/if}
+
+		<div class=" flex-1"></div>
+
+		<button
+			aria-label="Open new window"
+			title="Open new window"
+			onclick={async () => await openNewWindow()}
+			class="flex flex-col items-center cursor-pointer py-2 w-full hover:bg-neutral-600"
+		>
+			<svg xmlns="http://www.w3.org/2000/svg" width="1.5rem" height="1.5rem" viewBox="0 0 2048 2048"
+				><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
+					fill="currentColor"
+					d="M1536 256h384v384h-128V475l-456 456l-91-91l456-456h-165zm0 768l128-128v768H0V512h1280l-128 128H128v896h1408z"
+				/></svg
+			>
+		</button>
 	</div>
 </aside>

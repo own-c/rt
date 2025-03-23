@@ -6,14 +6,14 @@ declare global {
 		avatarBlob: number[];
 	};
 
+	enum Platform {
+		Twitch = 'twitch',
+		YouTube = 'youtube'
+	}
+
 	type Feed = {
 		twitch: LiveNow[] | null;
 	};
-
-	enum Platform {
-		Twitch = 'twitch',
-		Youtube = 'youtube'
-	}
 
 	type LiveNow = {
 		username: string;

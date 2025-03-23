@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Result};
 use serde::Serialize;
 
-use crate::utils;
+use crate::util;
 
 use super::{
     main,
-    queries::{GraphQLQuery, GraphQLResponse, UseLiveQuery, UseLiveResponse},
+    query::{GraphQLQuery, GraphQLResponse, UseLiveQuery, UseLiveResponse},
 };
 
 const USHER_API: &str = "https://usher.ttvnw.net/api/channel/hls";
@@ -107,7 +107,7 @@ pub async fn fetch_stream_playback(username: &str, backup: bool) -> Result<Strin
 fn playlist_url(username: &str, backup: bool, signature: &str, token: &str) -> String {
     let mut url = format!("{USHER_API}/{username}.m3u8");
 
-    let random_number = utils::random_number(1_000_000, 10_000_000);
+    let random_number = util::random_number(1_000_000, 10_000_000);
 
     if backup {
         url.push_str(&format!("?platform=ios&supported_codecs=h264&player=twitchweb&fast_bread=true&p={random_number}&sig={signature}&token={token}"));
