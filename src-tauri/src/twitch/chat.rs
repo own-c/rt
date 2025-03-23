@@ -74,12 +74,14 @@ pub async fn join_chat(
     username: &str,
     reader: Channel<ChatEvent>,
 ) -> Result<(), String> {
-    let state = state.lock().await;
-    let emotes_db = state.emotes_db.as_ref().unwrap();
+    let user_emotes = {
+        let state = state.lock().await;
+        let emotes_db = state.emotes_db.as_ref().unwrap();
 
-    let user_emotes = emote::query_user_emotes(emotes_db, username)
-        .await
-        .unwrap_or_default();
+        emote::query_user_emotes(emotes_db, username)
+            .await
+            .unwrap_or_default()
+    };
 
     let mut ws_stream = match tokio_tungstenite::connect_async(WS_CHAT_URL).await {
         Ok((ws_stream, _)) => ws_stream,

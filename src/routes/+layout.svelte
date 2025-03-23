@@ -1,11 +1,12 @@
 <script lang="ts">
-	import Notification from '$lib/components/Notification.svelte';
-	import Sidebar from '$lib/components/Sidebar.svelte';
-	import Titlebar from '$lib/components/Titlebar.svelte';
 	import '../app.css';
 
 	import 'simplebar';
 	import 'simplebar/dist/simplebar.css';
+
+	import Notification from '$lib/components/Notification.svelte';
+	import Sidebar from '$lib/components/Sidebar.svelte';
+	import Titlebar from '$lib/components/Titlebar.svelte';
 
 	let { children } = $props();
 </script>

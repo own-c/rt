@@ -3,8 +3,21 @@
 
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 
+	import { currentView } from '$lib/state/View.svelte';
+
 	const appWindow = getCurrentWindow();
 	let maximized = $state(false);
+
+	function getTitlebarColor() {
+		switch (currentView.id) {
+			case 'twitch':
+				return 'bg-violet-800';
+			case 'youtube':
+				return 'bg-red-700';
+			default:
+				return 'bg-neutral-600';
+		}
+	}
 
 	onMount(async () => {
 		await getCurrentWindow().onResized(async () => {
@@ -13,7 +26,9 @@
 	});
 </script>
 
-<header data-tauri-drag-region class="flex w-full bg-violet-800 min-h-8">
+<header data-tauri-drag-region class="flex w-full min-h-8 {getTitlebarColor()}">
+	<span class="flex items-center px-2 text-lg font-medium">{currentView.name}</span>
+
 	<div class="flex-1"></div>
 
 	<div class="flex h-full">
@@ -58,7 +73,7 @@
 			aria-label="Close"
 			title="Close"
 			onclick={() => appWindow.close()}
-			class="px-2 hover:bg-red-600"
+			class="px-2 hover:bg-red-500"
 		>
 			<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 2048 2048"
 				><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path

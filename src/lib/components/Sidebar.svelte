@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { fade } from 'svelte/transition';
 
 	import { error, info } from './Notification.svelte';
 	import { invoke } from '@tauri-apps/api/core';
@@ -10,6 +11,7 @@
 
 	let inputEl = $state() as HTMLInputElement;
 	let username = $state('');
+	let platform = $state('twitch');
 	let showInput = $state(false);
 
 	async function toggleUserInput() {
@@ -38,8 +40,13 @@
 		showInput = false;
 		loading = true;
 
+		if (!username) {
+			info('No username provided');
+			return;
+		}
+
 		try {
-			await invoke('add_user', { username: username, platform: currentView.id });
+			await invoke('add_user', { username: username, platform: platform });
 		} catch (err) {
 			error(`Error adding user '${username}'`, err as string);
 			return;
@@ -106,33 +113,52 @@
 	<hr class="border-gray-700 w-full" />
 
 	<div class="flex flex-col items-center w-full">
-		<button
-			aria-label="Add user"
-			title="Add user"
-			onclick={toggleUserInput}
-			class="relative flex flex-col items-center cursor-pointer hover:bg-neutral-600 w-full py-2"
-		>
-			<svg xmlns="http://www.w3.org/2000/svg" width="1.5rem" height="1.5rem" viewBox="0 0 2048 2048"
-				><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
-					fill="currentColor"
-					d="M1024 0q141 0 272 36t244 104t207 160t161 207t103 245t37 272q0 141-36 272t-104 244t-160 207t-207 161t-245 103t-272 37q-141 0-272-36t-245-103t-207-160t-160-208t-103-244t-37-273q0-141 36-272t104-244t160-207t207-161T752 37t272-37m0 1920q124 0 238-32t214-90t181-140t140-181t91-214t32-239t-32-238t-90-214t-140-181t-181-140t-214-91t-239-32t-238 32t-214 90t-181 140t-140 181t-91 214t-32 239t32 238t90 214t140 182t181 140t214 90t239 32m64-961h448v128h-448v449H960v-449H512V959h448V512h128z"
-				/></svg
+		{#if currentView.id == 'users'}
+			<button
+				aria-label="Add user"
+				title="Add user"
+				onclick={toggleUserInput}
+				in:fade={{ duration: 100 }}
+				class="relative flex flex-col items-center cursor-pointer hover:bg-neutral-600 w-full py-2"
 			>
-			{#if showInput}
-				<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-				<form onsubmit={async () => await addUser(username)} onkeydown={handleKeyDown}>
-					<input
-						bind:this={inputEl}
-						bind:value={username}
-						type="text"
-						placeholder="Channel name"
-						spellcheck="false"
-						autocomplete="on"
-						class="absolute top-2 left-12 px-2 shadow-md w-32 z-50 bg-gray-800 border border-white rounded-md outline-none user-select outline"
-					/>
-				</form>
-			{/if}
-		</button>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="1.5rem"
+					height="1.5rem"
+					viewBox="0 0 2048 2048"
+					><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
+						fill="currentColor"
+						d="M1024 0q141 0 272 36t244 104t207 160t161 207t103 245t37 272q0 141-36 272t-104 244t-160 207t-207 161t-245 103t-272 37q-141 0-272-36t-245-103t-207-160t-160-208t-103-244t-37-273q0-141 36-272t104-244t160-207t207-161T752 37t272-37m0 1920q124 0 238-32t214-90t181-140t140-181t91-214t32-239t-32-238t-90-214t-140-181t-181-140t-214-91t-239-32t-238 32t-214 90t-181 140t-140 181t-91 214t-32 239t32 238t90 214t140 182t181 140t214 90t239 32m64-961h448v128h-448v449H960v-449H512V959h448V512h128z"
+					/></svg
+				>
+
+				{#if showInput}
+					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+					<form
+						onsubmit={async () => await addUser(username)}
+						onclick={(e) => e.stopPropagation()}
+						onfocusin={() => (showInput = true)}
+						onkeydown={handleKeyDown}
+						class="absolute flex gap-1 items-center top-0 left-12 z-50 bg-gray-800 p-2 rounded-md shadow-md"
+					>
+						<input
+							bind:this={inputEl}
+							bind:value={username}
+							type="text"
+							placeholder="Channel name"
+							spellcheck="false"
+							autocomplete="on"
+							class="px-2 py-1 w-32 bg-gray-700 rounded-md outline-none"
+						/>
+
+						<select bind:value={platform} class="px-2 py-1 bg-gray-700 rounded-md outline-none">
+							<option value="twitch">Twitch</option>
+							<option value="youtube">YouTube</option>
+						</select>
+					</form>
+				{/if}
+			</button>
+		{/if}
 
 		{#if currentView.id !== 'users'}
 			<button
@@ -140,6 +166,7 @@
 				title="Refresh"
 				disabled={loading}
 				onclick={async () => await refreshFeed()}
+				in:fade={{ duration: 100 }}
 				class="flex flex-col items-center cursor-pointer w-full py-2 {loading
 					? 'opacity-50'
 					: 'hover:bg-neutral-600'}"

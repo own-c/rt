@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use log::LevelFilter;
+use log::{error, LevelFilter};
 use sqlx::SqlitePool;
 use tauri::{
     async_runtime::{self, Mutex},
@@ -12,6 +12,7 @@ mod feeds;
 mod twitch;
 mod users;
 mod utils;
+mod window;
 
 pub struct AppState {
     pub users_db: Option<SqlitePool>,
@@ -25,15 +26,18 @@ pub fn run() {
 
     #[cfg(desktop)]
     {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {
-            /*
-            let webview_url = WebviewUrl::App("index.html".into());
+        builder = builder.plugin(tauri_plugin_single_instance::init(
+            |app_handle, args, _cwd| {
+                let app_handle = app_handle.clone();
 
-            if let Err(err) = WebviewWindowBuilder::new(app, "second", webview_url).build() {
-                println!("Error creating new window: {err}");
-            }
-            */
-        }));
+                // Remove first element from the args, it's the executable path
+                let urls = &args[1..];
+
+                if let Err(err) = window::open_new_window(app_handle, urls) {
+                    error!("Failed to open new window: {err}");
+                };
+            },
+        ));
     }
 
     builder = builder

@@ -2,12 +2,11 @@
 	import { onMount } from 'svelte';
 
 	import { invoke } from '@tauri-apps/api/core';
+	import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 	import { error, info } from '$lib/components/Notification.svelte';
 
 	import { getAvatarUrl } from '$lib/Utils';
-
-	import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 	let users = $state([]) as User[];
 
@@ -16,8 +15,6 @@
 	let loading = $state(false);
 
 	async function updateUser(username: string, platform: Platform) {
-		loading = true;
-
 		try {
 			await invoke('add_user', { username: username, platform: platform });
 		} catch (err) {
@@ -25,7 +22,6 @@
 			return;
 		}
 
-		loading = false;
 		info(`Updated '${username}'`);
 	}
 
@@ -43,7 +39,7 @@
 	async function updateView() {
 		try {
 			await invoke<User[]>('get_users').then((data) => {
-				users = data;
+				users = data.sort((a, b) => a.username.localeCompare(b.username));
 			});
 		} catch (err) {
 			error('Error retrieving Twitch users', err as string);
@@ -56,7 +52,9 @@
 			await updateView();
 		});
 
+		loading = true;
 		await updateView();
+		loading = false;
 	});
 </script>
 
@@ -70,11 +68,11 @@
 
 	<hr class="border-gray-700 w-full" />
 
-	<div class="flex w-full">
-		{#if users.length === 0 || users.filter((user) => user.platform === filter).length === 0}
-			<div class="flex flex-col items-center justify-center w-full">
-				<span class="text-lg font-medium">No users found</span>
-			</div>
+	<div class="flex gap-2 w-full">
+		{#if loading}
+			<span class="text-lg font-medium">Loading...</span>
+		{:else if users.length === 0 || users.filter((user) => user.platform === filter).length === 0}
+			<span class="text-lg font-medium">No users found</span>
 		{:else}
 			{#each users as user, index (index)}
 				{#if user.platform === filter}
@@ -92,7 +90,7 @@
 							<div class="flex">
 								<button
 									disabled={loading}
-									title={filter === 'twitch' ? 'Emotes and avatar' : ''}
+									title={filter === 'twitch' ? 'Update emotes and avatar' : ''}
 									class="block w-full px-2 py-1 bg-neutral-500 hover:bg-neutral-600"
 									onclick={async () => await updateUser(user.username, user.platform)}
 								>
@@ -101,6 +99,7 @@
 
 								<button
 									disabled={loading}
+									title="Remove user"
 									class="block w-full px-2 py-1 bg-red-500 hover:bg-red-600"
 									onclick={async () => await removeUser(user.username, user.platform)}
 								>

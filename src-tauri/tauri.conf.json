@@ -26,7 +26,11 @@
   },
   "plugins": {
     "sql": {
-      "preload": ["sqlite:emotes.db", "sqlite:users.db", "sqlite:feeds.db"]
+      "preload": [
+        "sqlite:emotes.db",
+        "sqlite:users.db",
+        "sqlite:feeds.db"
+      ]
     },
     "deep-link": {
       "desktop": {
@@ -38,7 +42,11 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["rpm", "deb","nsis"],
+    "targets": [
+      "rpm",
+      "deb",
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

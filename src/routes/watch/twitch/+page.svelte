@@ -1,13 +1,13 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { fade } from 'svelte/transition';
 
+	import { invoke } from '@tauri-apps/api/core';
 	import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 	import Player from '$lib/components/Player.svelte';
 	import Chat from '$lib/components/Chat.svelte';
 	import { error, info } from '$lib/components/Notification.svelte';
-	import { onMount } from 'svelte';
-	import { invoke } from '@tauri-apps/api/core';
 
 	let username = $state('');
 	let url = $state('');
