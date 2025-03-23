@@ -58,7 +58,7 @@
 				}
 			);
 		} catch (err) {
-			error(`Error fetching stream info`, err as string);
+			error('Stream not found', err as string);
 		}
 	});
 </script>

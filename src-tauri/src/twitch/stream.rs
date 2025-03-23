@@ -57,26 +57,6 @@ pub async fn fetch_live_now(usernames: Vec<String>) -> Result<HashMap<String, Li
     Ok(live_now)
 }
 
-#[derive(Serialize)]
-pub struct User {
-    id: String,
-    username: String,
-    avatar: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    stream: Option<Stream>,
-}
-
-#[derive(Serialize, Default)]
-pub struct Stream {
-    title: String,
-    started_at: String,
-    game: String,
-    boxart: String,
-    view_count: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    url: Option<String>,
-}
-
 #[tauri::command]
 pub async fn fetch_stream_playback(username: &str, backup: bool) -> Result<String, String> {
     if username.is_empty() {

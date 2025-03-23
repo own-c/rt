@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 
 	import { getCurrent } from '@tauri-apps/plugin-deep-link';
 
 	import { changeView } from '$lib/state/View.svelte';
 	import { error } from '$lib/components/Notification.svelte';
-	import { goto } from '$app/navigation';
 
 	const twitchReg = new RegExp('twitch.tv/([a-zA-Z0-9_]+)');
 

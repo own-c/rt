@@ -18,6 +18,8 @@ pub fn open_url(app_handle: AppHandle, urls: &[String]) -> Result<()> {
         return Err(anyhow!("No URLs provided"));
     }
 
+    // TODO: Handle multiple URLs (youtube and twitch)
+
     let url = urls.first().unwrap();
 
     if let Some(caps) = TWITCH_URL_REG.captures(url) {

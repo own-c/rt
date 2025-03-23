@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 
 	import { invoke } from '@tauri-apps/api/core';
 	import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
@@ -26,6 +27,17 @@
 		loading = false;
 	}
 
+	async function handleMouseWheelClick(event: MouseEvent, username: string) {
+		// Middle mouse button
+		if (event.button === 1) {
+			try {
+				await invoke('open_new_window', { url: `/streams/watch?username=${username}` });
+			} catch (err) {
+				error('Error opening new window', err as string);
+			}
+		}
+	}
+
 	onMount(async () => {
 		const appWebview = getCurrentWebviewWindow();
 		appWebview.listen<string>('update_view', async () => {
@@ -44,22 +56,22 @@
 	{:else}
 		{#each feed as live_now, index (index)}
 			<div>
-				<a
-					href={`/streams/watch?username=${live_now.username}`}
-					class="flex flex-col items-center hover:bg-neutral-800 rounded-md cursor-pointer"
+				<button
+					onmousedown={async (event: MouseEvent) =>
+						await handleMouseWheelClick(event, live_now.username)}
+					onclick={async () => goto(`/streams/watch?username=${live_now.username}`)}
+					class="flex flex-col hover:bg-neutral-800 cursor-pointer"
 				>
 					<img
 						src={`https://static-cdn.jtvnw.net/previews-ttv/live_user_${live_now.username}-440x248.jpg`}
 						alt="Stream thumbnail"
-						class="aspect-16/9 object-contain max-h-32 min-h-32"
+						class="max-h-32 min-h-32"
 					/>
 
-					<div class="flex flex-col justify-around w-full p-1">
-						<span class="text-lg font-bold">{live_now.username}</span>
+					<span class="text-lg font-bold">{live_now.username}</span>
 
-						<span class="text-sm text-neutral-400">{streamingFor(live_now.started_at)}</span>
-					</div>
-				</a>
+					<span class="text-sm text-neutral-400">{streamingFor(live_now.started_at)}</span>
+				</button>
 			</div>
 		{/each}
 	{/if}
