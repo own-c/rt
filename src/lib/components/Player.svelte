@@ -14,7 +14,7 @@
 		LoaderCallbacks
 	} from 'hls.js';
 
-	let { username, url } = $props();
+	let { windowLabel, username, url } = $props();
 
 	let player = $state() as MediaPlayerElement;
 
@@ -65,7 +65,11 @@
 
 			// context.type === 'level'
 
-			invoke<string>('proxy_stream', { username: username, url: context.url })
+			invoke<string>('proxy_stream', {
+				windowLabel: windowLabel,
+				username: username,
+				url: context.url
+			})
 				.then((data) => {
 					this.stats.loaded = data.length;
 

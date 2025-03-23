@@ -11,7 +11,7 @@ lazy_static! {
     static ref TWITCH_URL_REG: Regex = Regex::new(r"twitch.tv/([a-zA-Z0-9_]+)").unwrap();
 }
 
-pub fn open_new_window(app_handle: AppHandle, urls: &[String]) -> Result<()> {
+pub fn open_url(app_handle: AppHandle, urls: &[String]) -> Result<()> {
     let mut username = String::new();
 
     if urls.is_empty() {
@@ -35,9 +35,18 @@ pub fn open_new_window(app_handle: AppHandle, urls: &[String]) -> Result<()> {
         return Err(anyhow!("Username was empty after parsing URL"));
     }
 
+    let url = format!("/watch/twitch?username={username}");
+
+    open_new_window(app_handle, url);
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_new_window(app_handle: AppHandle, url: String) {
     // In Windows, a new window must be created in a separate thread
     async_runtime::spawn(async move {
-        let webview_url = WebviewUrl::App(format!("/watch/twitch?username={username}").into());
+        let webview_url = WebviewUrl::App(url.into());
 
         let mut window_id = WINDOW_ID.lock().await;
         *window_id += 1;
@@ -52,6 +61,4 @@ pub fn open_new_window(app_handle: AppHandle, urls: &[String]) -> Result<()> {
             println!("Error creating new window: {err}");
         }
     });
-
-    Ok(())
 }

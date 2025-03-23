@@ -51,7 +51,7 @@
 					<img
 						src={`https://static-cdn.jtvnw.net/previews-ttv/live_user_${live_now.username}-440x248.jpg`}
 						alt="Stream thumbnail"
-						class="aspect-16/9 object-contain max-h-32"
+						class="aspect-16/9 object-contain max-h-32 min-h-32"
 					/>
 
 					<div class="flex flex-col justify-around w-full p-1">

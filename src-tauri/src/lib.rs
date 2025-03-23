@@ -33,7 +33,7 @@ pub fn run() {
                 // Remove first element from the args, it's the executable path
                 let urls = &args[1..];
 
-                if let Err(err) = window::open_new_window(app_handle, urls) {
+                if let Err(err) = window::open_url(app_handle, urls) {
                     error!("Failed to open new window: {err}");
                 };
             },
@@ -113,6 +113,7 @@ pub fn run() {
             users::remove_user,
             feeds::get_feed,
             feeds::refresh_feed,
+            window::open_new_window,
             twitch::stream::fetch_stream_playback,
             twitch::proxy::proxy_stream,
             twitch::chat::join_chat,

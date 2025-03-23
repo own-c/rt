@@ -20,7 +20,6 @@
     "sql:default",
     "deep-link:default",
     "log:default",
-    "store:default",
     "opener:allow-default-urls",
     {
       "identifier": "opener:allow-open-url",

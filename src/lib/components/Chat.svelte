@@ -116,7 +116,7 @@
 	<div
 		data-simplebar
 		bind:this={chatContainer}
-		class="h-[calc(100vh-4rem)] w-full bg-neutral-900 overflow-y-auto"
+		class="h-[calc(100vh-4rem)] w-full bg-neutral-800 overflow-y-auto"
 	>
 		{#each messages as message (message.id)}
 			<div

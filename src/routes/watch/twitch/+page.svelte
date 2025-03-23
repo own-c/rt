@@ -9,6 +9,7 @@
 	import Chat from '$lib/components/Chat.svelte';
 	import { error, info } from '$lib/components/Notification.svelte';
 
+	let windowLabel = $state('');
 	let username = $state('');
 	let url = $state('');
 
@@ -33,6 +34,8 @@
 
 	onMount(async () => {
 		const appWebview = getCurrentWebviewWindow();
+		windowLabel = appWebview.label;
+
 		appWebview.listen<string>('stream', (event) => {
 			switch (event.payload) {
 				case 'main':
@@ -63,7 +66,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="flex w-full h-full" onmousemove={handleMousemove}>
 	{#if url}
-		<Player {username} {url} />
+		<Player {windowLabel} {username} {url} />
 	{/if}
 </div>
 

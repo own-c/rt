@@ -1,25 +1,34 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 use lazy_static::lazy_static;
-use log::{error, info};
+use log::error;
 use regex::Regex;
-use tauri::{async_runtime::Mutex, AppHandle, Emitter};
+use tauri::{async_runtime::Mutex, AppHandle, Emitter, EventTarget};
 
 use super::{main::PROXY_HTTP_CLIENT, stream};
 
 lazy_static! {
-    // These are public so that they can be reset when changing streams in the tauri commands.
-    pub static ref USING_BACKUP: AtomicBool = AtomicBool::new(false);
-    pub static ref MAIN_STREAM_URL: Mutex<Option<String>> = Mutex::new(None);
-    pub static ref BACKUP_STREAM_URL: Mutex<Option<String>> = Mutex::new(None);
-
+    static ref STREAM_STATE: Mutex<HashMap<String, StreamState>> = Mutex::new(HashMap::new());
     static ref URL_REGEX: Regex = Regex::new(r"^(https?://[^\s]+)").unwrap();
+}
+
+#[derive(Clone)]
+pub struct StreamState {
+    using_backup: bool,
+    main_stream_url: Option<String>,
+    backup_stream_url: Option<String>,
+}
+
+async fn update_stream_state(window_label: String, new_state: StreamState) {
+    let mut stream_state = STREAM_STATE.lock().await;
+    stream_state.insert(window_label, new_state);
 }
 
 #[tauri::command]
 pub async fn proxy_stream(
     app_handle: AppHandle,
+    window_label: String,
     username: &str,
     url: &str,
 ) -> Result<String, String> {
@@ -44,37 +53,46 @@ pub async fn proxy_stream(
     let (ad_detected, mut playlist, is_master_playlist) =
         process_m3u8(&String::from_utf8_lossy(&body_bytes));
 
-    let using_backup = USING_BACKUP.load(Ordering::Relaxed);
+    let mut stream_state = {
+        let lock = STREAM_STATE.lock().await;
+        let state = lock.get(&window_label).unwrap_or(&StreamState {
+            using_backup: false,
+            main_stream_url: None,
+            backup_stream_url: None,
+        });
+        state.clone()
+    };
 
     if !is_master_playlist {
         {
-            let mut main_stream = MAIN_STREAM_URL.lock().await;
-            if main_stream.is_none() {
-                *main_stream = Some(url.to_string());
+            if stream_state.main_stream_url.is_none() {
+                stream_state.main_stream_url = Some(url.to_string());
             }
         }
 
         if ad_detected {
             // On ad detection, if backup isn’t already enabled, switch to backup
-            if !using_backup {
-                info!("Found ad in variant playlist. Switching to backup stream.");
-
-                if let Err(err) = app_handle.emit("stream", "backup") {
+            if !stream_state.using_backup {
+                if let Err(err) = app_handle.emit_to(
+                    EventTarget::WebviewWindow {
+                        label: window_label.clone(),
+                    },
+                    "stream",
+                    "backup",
+                ) {
                     error!("Failed to emit event: {err}");
                 }
 
-                USING_BACKUP.store(true, Ordering::Relaxed);
+                stream_state.using_backup = true;
             }
 
             // Use the cached backup stream URL if available, if not, fetch it once
             let backup_url = {
-                let mut backup_url_guard = BACKUP_STREAM_URL.lock().await;
-
-                if let Some(url) = backup_url_guard.clone() {
+                if let Some(url) = stream_state.backup_stream_url.clone() {
                     url
                 } else {
                     let url = fetch_backup_stream_url(username).await.unwrap_or_default();
-                    *backup_url_guard = Some(url.clone());
+                    stream_state.backup_stream_url = Some(url.clone());
                     url
                 }
             };
@@ -87,15 +105,19 @@ pub async fn proxy_stream(
                     playlist.clear();
                 }
             }
-        } else if using_backup {
+        } else if stream_state.using_backup {
             // If no ad is detected but we are still in backup, switch back to the main stream
-            info!("No ad detected. Switching back to main stream.");
-
-            if let Err(err) = app_handle.emit("stream", "main") {
+            if let Err(err) = app_handle.emit_to(
+                EventTarget::WebviewWindow {
+                    label: window_label.clone(),
+                },
+                "stream",
+                "main",
+            ) {
                 error!("Failed to emit event: {err}");
             }
 
-            match fetch_main_stream(username).await {
+            match fetch_main_stream(username, &mut stream_state).await {
                 Ok(pl) => playlist = pl,
                 Err(err) => {
                     error!("Failed to fetch main stream: {err}");
@@ -103,10 +125,12 @@ pub async fn proxy_stream(
                 }
             }
 
-            USING_BACKUP.store(false, Ordering::Relaxed);
-            *BACKUP_STREAM_URL.lock().await = None;
+            stream_state.using_backup = false;
+            stream_state.backup_stream_url = None;
         }
     }
+
+    update_stream_state(window_label, stream_state).await;
 
     Ok(playlist)
 }
@@ -144,8 +168,8 @@ async fn fetch_playlist_text(url: &str) -> Result<String> {
         .map_err(|err| anyhow!("Failed to read text: {err}"))
 }
 
-async fn fetch_main_stream(username: &str) -> Result<String> {
-    let Some(main_url) = MAIN_STREAM_URL.lock().await.clone() else {
+async fn fetch_main_stream(username: &str, stream_state: &mut StreamState) -> Result<String> {
+    let Some(main_url) = stream_state.main_stream_url.clone() else {
         error!("Main stream URL not found. Falling back to backup stream.");
         let backup_url = fetch_backup_stream_url(username).await?;
         return fetch_playlist_text(&backup_url).await;
@@ -155,11 +179,11 @@ async fn fetch_main_stream(username: &str) -> Result<String> {
     let (ad_detected, processed_playlist, _) = process_m3u8(&body);
 
     if ad_detected {
-        USING_BACKUP.store(true, Ordering::Relaxed);
+        stream_state.using_backup = true;
         return Ok("#EXTM3U\n#EXT-X-ENDLIST\n".to_string());
     }
 
-    USING_BACKUP.store(false, Ordering::Relaxed);
+    stream_state.using_backup = false;
     Ok(processed_playlist)
 }
 
