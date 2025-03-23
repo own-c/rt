@@ -4,7 +4,7 @@ use sqlx::Row;
 use tauri::{async_runtime::Mutex, AppHandle, Emitter, State};
 
 use crate::{
-    twitch::{self, live::LiveNow},
+    twitch::{self, stream::LiveNow},
     users::Platform,
     AppState,
 };
@@ -76,7 +76,7 @@ pub async fn refresh_feed(
             usernames.push(username);
         }
 
-        let live_now = match twitch::live::fetch_live_now(usernames).await {
+        let live_now = match twitch::stream::fetch_live_now(usernames).await {
             Ok(live_now) => live_now,
             Err(err) => {
                 return Err(format!("Failed to fetch live now: {err}"));

@@ -6,7 +6,7 @@ use log::{error, info};
 use regex::Regex;
 use tauri::{async_runtime::Mutex, AppHandle, Emitter};
 
-use super::{live, main::PROXY_HTTP_CLIENT};
+use super::{main::PROXY_HTTP_CLIENT, stream};
 
 lazy_static! {
     // These are public so that they can be reset when changing streams in the tauri commands.
@@ -164,7 +164,7 @@ async fn fetch_main_stream(username: &str) -> Result<String> {
 }
 
 async fn fetch_backup_stream_url(username: &str) -> Result<String> {
-    let url = match live::fetch_stream_playback(username, true).await {
+    let url = match stream::fetch_stream_playback(username, true).await {
         Ok(url) => url,
         Err(err) => {
             return Err(anyhow!("Failed to fetch backup stream: {err}"));

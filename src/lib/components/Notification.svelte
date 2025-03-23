@@ -1,13 +1,15 @@
 <script lang="ts" module>
 	import { fly, fade } from 'svelte/transition';
 
-	import { error as logError } from '@tauri-apps/plugin-log';
+	import { error as logError, info as logInfo } from '@tauri-apps/plugin-log';
 
 	let visible = $state(false);
 	let notificationMessage = $state('');
 
 	export function info(message: string) {
 		notificationMessage = message;
+
+		logInfo(`${message}`);
 
 		visible = true;
 
@@ -33,8 +35,8 @@
 	<div
 		role="alert"
 		class="fixed bottom-4 left-1/2 transform -translate-x-1/2 rounded-lg shadow-lg bg-black/60 text-white text-center p-2 z-100"
-		in:fly={{ y: 20, duration: 300 }}
-		out:fade={{ duration: 300 }}
+		in:fly={{ y: 20, duration: 200 }}
+		out:fade={{ duration: 100 }}
 	>
 		{notificationMessage}
 	</div>

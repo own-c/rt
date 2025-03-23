@@ -4,7 +4,7 @@ use anyhow::Result;
 
 use log::error;
 use serde::{Deserialize, Serialize};
-use sqlx::{prelude::Type, Row};
+use sqlx::{prelude::Type, Pool, Row, Sqlite};
 use tauri::{async_runtime::Mutex, AppHandle, Emitter, State};
 
 use crate::{twitch, utils, AppState};
@@ -37,35 +37,24 @@ impl Display for Platform {
 #[tauri::command]
 pub async fn get_users(
     state: State<'_, Mutex<AppState>>,
-    platform: Platform,
+    platform: Option<Platform>,
 ) -> Result<Vec<User>, String> {
     let state = state.lock().await;
     let users_db = state.users_db.as_ref().unwrap();
 
-    if platform == Platform::Twitch {
-        let query = "SELECT username, avatar FROM twitch";
-
-        let rows = sqlx::query(query)
-            .fetch_all(users_db)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        let mut users: Vec<User> = Vec::with_capacity(rows.len());
-
-        for row in rows {
-            let user = User {
-                username: row.try_get("username").map_err(|e| e.to_string())?,
-                avatar_blob: row.try_get("avatar").map_err(|e| e.to_string())?,
-                platform: Platform::Twitch,
-            };
-
-            users.push(user);
+    let users = match platform {
+        Some(platform) => get_users_for_platform(users_db, platform).await,
+        None => {
+            // TODO: Merge users from all platforms when adding Youtube
+            get_users_for_platform(users_db, Platform::Twitch).await
         }
+    };
 
-        return Ok(users);
+    if let Err(err) = users {
+        return Err(format!("Failed to get users: {err}"));
     }
 
-    Err(format!("Invalid platform '{platform}'"))
+    Ok(users.unwrap())
 }
 
 #[tauri::command]
@@ -120,4 +109,69 @@ pub async fn add_user(
     }
 
     Err(format!("Invalid platform '{platform}'"))
+}
+
+#[tauri::command]
+pub async fn remove_user(
+    app_handle: AppHandle,
+    state: State<'_, Mutex<AppState>>,
+    username: String,
+    platform: Platform,
+) -> Result<(), String> {
+    let state = state.lock().await;
+    let users_db = state.users_db.as_ref().unwrap();
+    let feeds_db = state.feeds_db.as_ref().unwrap();
+    let emotes_db = state.emotes_db.as_ref().unwrap();
+
+    if platform == Platform::Twitch {
+        let query = "DELETE FROM twitch WHERE username = ?";
+
+        sqlx::query(query)
+            .bind(&username)
+            .execute(users_db)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let query = "DELETE FROM twitch WHERE username = ?";
+
+        sqlx::query(query)
+            .bind(&username)
+            .execute(feeds_db)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let query = "DELETE FROM twitch WHERE username = ?";
+
+        sqlx::query(query)
+            .bind(&username)
+            .execute(emotes_db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if let Err(err) = app_handle.emit("update_view", platform) {
+        return Err(format!("Error emitting 'update_view' event: {err}"));
+    }
+
+    Ok(())
+}
+
+async fn get_users_for_platform(users_db: &Pool<Sqlite>, platform: Platform) -> Result<Vec<User>> {
+    let query = format!("SELECT username, avatar FROM {platform}");
+
+    let rows = sqlx::query(&query).fetch_all(users_db).await?;
+
+    let mut users: Vec<User> = Vec::with_capacity(rows.len());
+
+    for row in rows {
+        let user = User {
+            username: row.try_get("username")?,
+            avatar_blob: row.try_get("avatar")?,
+            platform: platform.clone(),
+        };
+
+        users.push(user);
+    }
+
+    Ok(users)
 }

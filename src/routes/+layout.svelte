@@ -8,20 +8,9 @@
 	import 'simplebar/dist/simplebar.css';
 
 	let { children } = $props();
-
-	// Disable tab navigation
-	function handleKeyDown(event: KeyboardEvent) {
-		if (event.key === 'Tab') {
-			event.preventDefault();
-		}
-	}
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
-	class="flex flex-col h-screen w-screen overflow-hidden bg-neutral-950 text-white"
-	onkeydown={handleKeyDown}
->
+<div class="flex flex-col h-screen w-screen overflow-hidden bg-neutral-950 text-white">
 	<Titlebar />
 
 	<div class="flex min-h-full w-full">

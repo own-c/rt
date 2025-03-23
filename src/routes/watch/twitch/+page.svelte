@@ -12,19 +12,6 @@
 	let username = $state('');
 	let url = $state('');
 
-	const appWebview = getCurrentWebviewWindow();
-	appWebview.listen<string>('stream', (event) => {
-		switch (event.payload) {
-			case 'main':
-				info('No ads detected, switching main stream.');
-				break;
-
-			case 'backup':
-				info('Found ads, switching to backup stream.');
-				break;
-		}
-	});
-
 	let showChat = $state(false);
 	let movingMouse = $state(false);
 
@@ -45,6 +32,19 @@
 	}
 
 	onMount(async () => {
+		const appWebview = getCurrentWebviewWindow();
+		appWebview.listen<string>('stream', (event) => {
+			switch (event.payload) {
+				case 'main':
+					info('No ads detected, switching main stream.');
+					break;
+
+				case 'backup':
+					info('Found ads, switching to backup stream.');
+					break;
+			}
+		});
+
 		const routeURL = new URL(window.location.href);
 		username = routeURL.searchParams.get('username')!;
 

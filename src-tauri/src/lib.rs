@@ -55,6 +55,10 @@ pub fn run() {
                 .level_for("h2", LevelFilter::Off)
                 .level_for("hyper_util", LevelFilter::Off)
                 .level_for("sqlx", LevelFilter::Info)
+                .level_for(
+                    "tao::platform_impl::platform::event_loop::runner",
+                    LevelFilter::Off,
+                )
                 .build(),
         )
         .setup(|app| {
@@ -102,9 +106,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             users::get_users,
             users::add_user,
+            users::remove_user,
             feeds::get_feed,
             feeds::refresh_feed,
-            twitch::live::fetch_stream_playback,
+            twitch::stream::fetch_stream_playback,
             twitch::proxy::proxy_stream,
             twitch::chat::join_chat,
         ])

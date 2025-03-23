@@ -16,5 +16,11 @@ export function changeView(newView: string) {
 			currentView.name = 'Youtube';
 			goto('/view/youtube');
 			break;
+
+		case 'users':
+			currentView.id = 'users';
+			currentView.name = 'Users';
+			goto('/view/users');
+			break;
 	}
 }

@@ -14,8 +14,6 @@
 </script>
 
 <header data-tauri-drag-region class="flex w-full bg-violet-800 min-h-8">
-	<div class="w-32 min-w-32"></div>
-
 	<div class="flex-1"></div>
 
 	<div class="flex h-full">
