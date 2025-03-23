@@ -7,7 +7,7 @@
 
 	import SimpleBar from 'simplebar';
 
-	import { watching } from '$lib/Stores.svelte';
+	let { username } = $props();
 
 	let messages: ChatMessage[] = $state([]);
 	let tempMessages: ChatMessage[] = $state([]);
@@ -58,8 +58,6 @@
 	});
 
 	onMount(() => {
-		if (!watching.username || !watching.url) return;
-
 		simpleBarInstance = new SimpleBar(chatContainer).getScrollElement()!;
 		simpleBarInstance.addEventListener('scroll', handleScroll);
 
@@ -99,10 +97,10 @@
 			}
 		};
 
-		invoke('join_chat', { username: watching.username, reader });
+		invoke('join_chat', { username, reader });
 
 		return () => {
-			emit('leave_chat', watching.username);
+			emit('leave_chat', username);
 		};
 	});
 </script>

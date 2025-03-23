@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Context, Result};
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sqlx::Row;
+use sqlx::{Pool, Row, Sqlite};
 
-use super::main::{EMOTES_DB, HTTP_CLIENT};
+use super::main::HTTP_CLIENT;
 
 pub const TWITCH_EMOTES_CDN: &str = "https://static-cdn.jtvnw.net/emoticons/v2";
 const SEVENTV_API: &str = "https://7tv.io/v3";
@@ -23,11 +23,11 @@ pub struct Emote {
     pub height: i64,
 }
 
-pub async fn query_user_emotes(username: &str) -> Result<HashMap<String, Emote>, String> {
-    let lock = EMOTES_DB.lock().await;
-    let db = lock.as_ref().expect("Database not initialized");
-
-    let query = "SELECT name, url, width, height FROM emotes WHERE username = ?";
+pub async fn query_user_emotes(
+    db: &Pool<Sqlite>,
+    username: &str,
+) -> Result<HashMap<String, Emote>, String> {
+    let query = "SELECT name, url, width, height FROM twitch WHERE username = ?";
 
     let rows = sqlx::query(query)
         .bind(username)
@@ -56,13 +56,14 @@ pub async fn query_user_emotes(username: &str) -> Result<HashMap<String, Emote>,
     Ok(emotes)
 }
 
-pub async fn update_user_emotes(username: &str, emotes: HashMap<String, Emote>) -> Result<()> {
-    let lock = EMOTES_DB.lock().await;
-    let db = lock.as_ref().expect("Database not initialized");
-
+pub async fn update_user_emotes(
+    db: &Pool<Sqlite>,
+    username: &str,
+    emotes: HashMap<String, Emote>,
+) -> Result<()> {
     let mut tx = db.begin().await?;
 
-    sqlx::query("DELETE FROM emotes WHERE username = ?")
+    sqlx::query("DELETE FROM twitch WHERE username = ?")
         .bind(username)
         .execute(&mut *tx)
         .await?;
@@ -75,7 +76,7 @@ pub async fn update_user_emotes(username: &str, emotes: HashMap<String, Emote>) 
     let emote_values: Vec<&Emote> = emotes.values().collect();
 
     let mut query_str =
-        String::from("INSERT INTO emotes (username, name, url, width, height) VALUES ");
+        String::from("INSERT INTO twitch (username, name, url, width, height) VALUES ");
 
     let placeholders: Vec<String> = emote_values
         .iter()

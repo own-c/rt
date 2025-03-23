@@ -4,11 +4,9 @@ use anyhow::{anyhow, Result};
 use lazy_static::lazy_static;
 use log::{error, info};
 use regex::Regex;
-use tauri::{async_runtime::Mutex, Emitter};
+use tauri::{async_runtime::Mutex, AppHandle, Emitter};
 
-use crate::APP_HANDLE;
-
-use super::{main::PROXY_HTTP_CLIENT, user};
+use super::{live, main::PROXY_HTTP_CLIENT};
 
 lazy_static! {
     // These are public so that they can be reset when changing streams in the tauri commands.
@@ -20,7 +18,11 @@ lazy_static! {
 }
 
 #[tauri::command]
-pub async fn proxy_stream(username: &str, url: &str) -> Result<String, String> {
+pub async fn proxy_stream(
+    app_handle: AppHandle,
+    username: &str,
+    url: &str,
+) -> Result<String, String> {
     if url.is_empty() {
         return Err(String::from("No URL provided"));
     }
@@ -57,9 +59,6 @@ pub async fn proxy_stream(username: &str, url: &str) -> Result<String, String> {
             if !using_backup {
                 info!("Found ad in variant playlist. Switching to backup stream.");
 
-                let lock = APP_HANDLE.lock().await;
-                let app_handle = lock.as_ref().unwrap();
-
                 if let Err(err) = app_handle.emit("stream", "backup") {
                     error!("Failed to emit event: {err}");
                 }
@@ -91,9 +90,6 @@ pub async fn proxy_stream(username: &str, url: &str) -> Result<String, String> {
         } else if using_backup {
             // If no ad is detected but we are still in backup, switch back to the main stream
             info!("No ad detected. Switching back to main stream.");
-
-            let lock = APP_HANDLE.lock().await;
-            let app_handle = lock.as_ref().unwrap();
 
             if let Err(err) = app_handle.emit("stream", "main") {
                 error!("Failed to emit event: {err}");
@@ -168,7 +164,7 @@ async fn fetch_main_stream(username: &str) -> Result<String> {
 }
 
 async fn fetch_backup_stream_url(username: &str) -> Result<String> {
-    let url = match user::fetch_stream_playback(username, true).await {
+    let url = match live::fetch_stream_playback(username, true).await {
         Ok(url) => url,
         Err(err) => {
             return Err(anyhow!("Failed to fetch backup stream: {err}"));

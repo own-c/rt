@@ -2,29 +2,18 @@ declare global {
 	type User = {
 		id: string;
 		username: string;
-		avatar: string;
-		stream: Stream | null;
+		platform: Platform;
+		avatarBlob: number[];
 	};
 
-	type Stream = {
-		title: string;
-		started_at: string;
-		game: string;
-		boxart: string;
-		view_count: number;
-		url: string | null;
+	type Feed = {
+		twitch: LiveNow[] | null;
 	};
 
-	type Watching = {
-		username: string;
-		title: string;
-		started_at: string;
-		game: string;
-		boxart: string;
-		view_count: number;
-		last_update: Date;
-		url: string | null;
-	};
+	enum Platform {
+		Twitch = 'twitch',
+		Youtube = 'youtube'
+	}
 
 	type LiveNow = {
 		username: string;

@@ -1,27 +1,18 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { tick } from 'svelte';
 
-	import { info } from './Notification.svelte';
+	import { error, info } from './Notification.svelte';
+	import { invoke } from '@tauri-apps/api/core';
 
-	import {
-		live_now,
-		users,
-		watching,
-		refreshUsers,
-		removeUser,
-		updateUser,
-		parseTime,
-		joinStream,
-		is_ui_loading
-	} from '$lib/Stores.svelte';
+	import { currentView, changeView } from '$lib/state/View.svelte';
 
-	let rightClickedUser = $state('');
+	let loading = $state(false);
 
 	let inputEl = $state() as HTMLInputElement;
 	let username = $state('');
 	let showInput = $state(false);
 
-	async function toggleInput() {
+	async function toggleUserInput() {
 		showInput = !showInput;
 		username = '';
 
@@ -29,81 +20,76 @@
 		if (inputEl) inputEl.focus();
 	}
 
-	function handleKeyDown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && (showContextMenu || showInput)) {
-			showInput = false;
-			showContextMenu = false;
+	async function refreshFeed() {
+		loading = true;
+
+		try {
+			await invoke('refresh_feed', { platform: currentView.id });
+		} catch (err) {
+			error(`Error refreshing ${currentView.name} feed`, err as string);
+			return;
 		}
+
+		loading = false;
+		info('Refreshed feed');
 	}
 
-	let contextMenuEl = $state() as HTMLDivElement;
-	let rightClickPos = $state({ x: 0, y: 0 });
-	let showContextMenu = $state(false);
+	async function addUser(username: string) {
+		showInput = false;
+		loading = true;
 
-	function handleContextMenu(event: MouseEvent) {
-		event.preventDefault();
-		rightClickedUser = (event.target as HTMLElement).id;
-		rightClickPos = { x: event.clientX, y: event.clientY };
-		showContextMenu = true;
-	}
-
-	function handleLeftClick() {
-		if (contextMenuEl && showContextMenu) {
-			showContextMenu = false;
+		try {
+			await invoke('add_user', { username: username, platform: currentView.id });
+		} catch (err) {
+			error(`Error adding user '${username}'`, err as string);
+			return;
 		}
-	}
 
-	async function handleRefreshUsers() {
-		await refreshUsers();
-		info('Refreshed users');
-	}
-
-	function getStreamingFor(username: string) {
-		const liveNow = live_now[username];
-		if (!liveNow) return username;
-
-		const diff = new Date().getTime() - new Date(liveNow.started_at).getTime();
-		const totalSeconds = Math.floor(diff / 1000);
-		const time = parseTime(totalSeconds);
-
-		return `${username} - ${time}`;
-	}
-
-	async function changeStream(username: string) {
-		showInput = false;
-		await joinStream(username);
-	}
-
-	async function handleAddUser(username: string) {
-		showInput = false;
-		await updateUser(username, true);
+		loading = false;
 		info(`Added '${username}'`);
 	}
-
-	async function handleUpdateUser() {
-		showContextMenu = false;
-		await updateUser(rightClickedUser, false);
-		info(`Updated '${rightClickedUser}'`);
-	}
-
-	async function handleRemoveUser() {
-		showContextMenu = false;
-		await removeUser(rightClickedUser);
-		info(`Removed '${rightClickedUser}'`);
-	}
-
-	onMount(() => {
-		document.addEventListener('click', handleLeftClick);
-		document.addEventListener('keydown', handleKeyDown);
-	});
 </script>
 
-<aside class="flex flex-col items-center h-full min-w-12 bg-neutral-800 gap-2 user-select-none">
+<aside
+	class="flex flex-col items-center h-full w-12 min-w-12 bg-neutral-800 gap-2 user-select-none flex-shrink-0"
+>
+	<div class="flex flex-col items-center w-full">
+		<button
+			aria-label="Videos"
+			title="Videos"
+			onclick={() => changeView('youtube')}
+			class="flex flex-col items-center cursor-pointer hover:bg-neutral-600 w-full py-2"
+		>
+			<svg xmlns="http://www.w3.org/2000/svg" width="1.5em" height="1.5em" viewBox="0 0 2048 2048"
+				><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
+					fill="currentColor"
+					d="m2048 1544l-512-256v248H0V512h1536v248l512-256zm-640-904H128v768h1280zm512 71l-384 193v240l384 193z"
+				/></svg
+			>
+		</button>
+
+		<button
+			aria-label="Streams"
+			title="Streams"
+			onclick={() => changeView('twitch')}
+			class="flex flex-col items-center cursor-pointer hover:bg-neutral-600 w-full py-2"
+		>
+			<svg xmlns="http://www.w3.org/2000/svg" width="1.5em" height="1.5em" viewBox="0 0 2048 2048"
+				><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
+					fill="currentColor"
+					d="M1024 779q51 0 95 19t78 53t52 77t20 96q0 51-19 95t-53 78t-77 52t-96 20q-51 0-95-19t-78-53t-52-77t-20-96q0-51 19-95t53-78t77-52t96-20m0 384q29 0 54-11t44-29t30-44t11-55t-11-54t-29-44t-44-30t-55-11t-54 11t-44 29t-30 44t-11 55t11 54t29 44t44 30t55 11m716-855q72 71 127 154t93 174t57 189t20 199q0 101-19 199t-58 189t-93 174t-127 154l-75-75q64-64 113-138t83-156t51-169t18-178q0-90-17-177t-51-170t-83-156t-114-138zM383 383q-64 64-113 138t-84 156t-51 169t-18 178q0 90 17 177t52 170t83 156t114 138l-75 75q-72-71-127-154t-93-174t-57-189t-20-199q0-101 19-199t58-189t93-174t127-154zm1086 196q89 90 136 204t48 241q0 126-47 240t-137 205l-75-75q74-74 113-169t40-201q0-105-39-200t-114-170zm-815 75q-74 74-113 169t-40 201q0 105 39 200t114 170l-75 75q-89-90-136-204t-48-241q0-126 47-240t137-205z"
+				/></svg
+			>
+		</button>
+	</div>
+
+	<hr class="border-gray-700 w-full" />
+
 	<div class="flex flex-col items-center w-full">
 		<button
 			aria-label="Add user"
 			title="Add user"
-			onclick={toggleInput}
+			onclick={toggleUserInput}
 			class="flex flex-col items-center cursor-pointer hover:bg-neutral-600 w-full py-2"
 		>
 			<svg xmlns="http://www.w3.org/2000/svg" width="1.5em" height="1.5em" viewBox="0 0 2048 2048"
@@ -115,11 +101,11 @@
 		</button>
 
 		<button
-			aria-label="Refresh users"
-			title="Refresh users"
-			disabled={is_ui_loading()}
-			onclick={async () => await handleRefreshUsers()}
-			class="flex flex-col items-center cursor-pointer w-full py-2 {is_ui_loading()
+			aria-label="Refresh"
+			title="Refresh"
+			disabled={loading}
+			onclick={async () => await refreshFeed()}
+			class="flex flex-col items-center cursor-pointer w-full py-2 {loading
 				? 'opacity-50'
 				: 'hover:bg-neutral-600'}"
 		>
@@ -131,69 +117,10 @@
 			>
 		</button>
 	</div>
-
-	<hr class="border-gray-700 w-full" />
-
-	<div data-simplebar class="w-full h-full overflow-y-auto pb-8">
-		{#each Object.values(users).sort((a, b) => {
-			const aLive = live_now[a.username] ? 1 : 0;
-			const bLive = live_now[b.username] ? 1 : 0;
-			return bLive - aLive;
-		}) as user, index (index)}
-			{@const disabled =
-				!users ||
-				Object.keys(users).length === 0 ||
-				is_ui_loading() ||
-				user.username === watching.username}
-
-			<button
-				id={user.username}
-				title={live_now[user.username] ? getStreamingFor(user.username) : user.username}
-				{disabled}
-				class="flex flex-col items-center w-full py-1 {disabled
-					? 'opacity-50'
-					: 'cursor-pointer hover:bg-neutral-600'}"
-				onclick={async () => await changeStream(user.username)}
-				oncontextmenu={handleContextMenu}
-			>
-				<div class="relative">
-					{#if !user.avatar}
-						<div class="flex items-center justify-center rounded-full w-10 h-10">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								width="1.5em"
-								height="1.5em"
-								viewBox="0 0 2048 2048"
-								><path
-									fill="currentColor"
-									d="m2048 1544l-512-256v248H0V512h1536v248l512-256zm-640-904H128v768h1280zm512 71l-384 193v240l384 193z"
-								/></svg
-							>
-						</div>
-					{:else}
-						<img
-							width={50}
-							height={50}
-							src={user.avatar}
-							id={user.username}
-							alt={'Avatar of ' + user.username}
-							class="rounded-full w-10 h-10"
-						/>
-					{/if}
-
-					{#if live_now[user.username]}
-						<span
-							class="absolute top-0 right-0 h-3 w-3 bg-red-600 rounded-full border-1 border-black shadow-md"
-						></span>
-					{/if}
-				</div>
-			</button>
-		{/each}
-	</div>
 </aside>
 
 {#if showInput}
-	<form onsubmit={async () => await handleAddUser(username)}>
+	<form onsubmit={async () => await addUser(username)}>
 		<input
 			bind:this={inputEl}
 			bind:value={username}
@@ -204,26 +131,4 @@
 			class="fixed top-10 left-[60px] px-2 shadow-md w-32 z-50 bg-gray-800 border border-white rounded-md outline-none user-select outline"
 		/>
 	</form>
-{/if}
-
-{#if showContextMenu}
-	<div
-		bind:this={contextMenuEl}
-		class="flex flex-col gap-1 absolute shadow-lg rounded z-50 bg-neutral-700 py-1"
-		style="top: {rightClickPos.y}px; left: {rightClickPos.x + 10}px;"
-	>
-		<button
-			class="hover:bg-neutral-500 px-2 cursor-pointer w-full"
-			onclick={async () => await handleUpdateUser()}
-		>
-			Update
-		</button>
-
-		<button
-			class="hover:bg-red-500 px-2 cursor-pointer w-full"
-			onclick={async () => await handleRemoveUser()}
-		>
-			Remove
-		</button>
-	</div>
 {/if}

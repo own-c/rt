@@ -16,11 +16,11 @@ use serde::Serialize;
 use tauri::{
     async_runtime::{self, Mutex},
     ipc::Channel,
-    AppHandle, Listener,
+    AppHandle, Listener, State,
 };
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::{twitch::emote, utils};
+use crate::{twitch::emote, utils, AppState};
 
 use super::emote::Emote;
 
@@ -70,10 +70,16 @@ pub enum ChatEvent {
 #[tauri::command]
 pub async fn join_chat(
     app_handle: AppHandle,
+    state: State<'_, Mutex<AppState>>,
     username: &str,
     reader: Channel<ChatEvent>,
 ) -> Result<(), String> {
-    let user_emotes = emote::query_user_emotes(username).await.unwrap_or_default();
+    let state = state.lock().await;
+    let emotes_db = state.emotes_db.as_ref().unwrap();
+
+    let user_emotes = emote::query_user_emotes(emotes_db, username)
+        .await
+        .unwrap_or_default();
 
     let mut ws_stream = match tokio_tungstenite::connect_async(WS_CHAT_URL).await {
         Ok((ws_stream, _)) => ws_stream,

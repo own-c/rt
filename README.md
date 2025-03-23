@@ -60,11 +60,10 @@ Logs are stored in the following locations:
 
 ## TODO
 
-- Add global Twitch emotes.
-- Maybe add back users refreshing when opening the app.
+- Add Youtube as a frontend, needs:
+  - Fully working multi window support.
+  - Finish reworking the UI.
+  - Reintroduce features removed since the rework to allow for more than one window and frontend.
 - Put the seek bar at the end when joining a stream, currently it is some seconds behind when first joining.
-- Fix minor issue of chat still having some messages when switching streams, more noticeable when switching from a stream with very active chat.
-- Move from stores to sqlite dbs.
-- Allow multiple windows/streams.
-- Maybe add Youtube as a frontend.
 - Improve logging.
+- Add global Twitch emotes.

@@ -8,9 +8,6 @@ const USE_LIVE_QUERY_HASH: &str =
 /// I've thought a lot about how to make requests to the API, I believe that the amount of operations using persisted queries
 /// would outweigh the benefits of the using them (less overhead when parsing on the server side).
 ///
-/// For example, the equivalent of the `stream_query` method with `fetch_playback = true` would be around three persisted queries,
-/// which would be three operations inside a single request.
-///
 /// For now, until a better method is found, I will be doing it this way.
 #[derive(Serialize)]
 pub struct GraphQLQuery {
@@ -19,7 +16,7 @@ pub struct GraphQLQuery {
 
 impl GraphQLQuery {
     pub fn full_user(username: &str) -> Self {
-        let query = format!(
+        let gql = format!(
             r#"{{
                 user(login: "{username}") {{
                     id
@@ -44,55 +41,7 @@ impl GraphQLQuery {
         );
 
         Self {
-            query: query.trim().to_string(),
-        }
-    }
-
-    /// Used to retrieve information about a stream.
-    ///
-    /// Can also retrieve playback access token for a main stream.
-    /// This is used when the user is first joining a stream to avoid extra requests.
-    pub fn stream_query(username: &str, fetch_playback: bool) -> Self {
-        let stream_playback = if fetch_playback {
-            format!(
-                r#"
-                    streamPlaybackAccessToken(
-                        channelName: "{username}",
-                        params: {{
-                            platform: "web",
-                            playerBackend: "mediaplayer",
-                            playerType: "site",
-                        }}
-                    )
-                    {{
-                        value
-                        signature
-                    }}
-                "#
-            )
-        } else {
-            String::new()
-        };
-
-        let query = format!(
-            r#"{{
-                user(login: "{username}") {{
-                    stream {{
-                        title
-                        viewersCount
-                        createdAt
-                        game {{
-                            id
-                            name
-                        }}
-                    }}
-                }}
-                {stream_playback}
-            }}"#
-        );
-
-        Self {
-            query: query.trim().to_string(),
+            query: gql.trim().to_string(),
         }
     }
 
@@ -101,7 +50,7 @@ impl GraphQLQuery {
         let platform = if backup_stream { "ios" } else { "web" };
         let player_type = if backup_stream { "autoplay" } else { "site" };
 
-        let query = format!(
+        let gql = format!(
             r#"{{
                 streamPlaybackAccessToken(
                     channelName: "{username}",
@@ -119,7 +68,7 @@ impl GraphQLQuery {
         );
 
         Self {
-            query: query.trim().to_string(),
+            query: gql.trim().to_string(),
         }
     }
 }
@@ -147,25 +96,8 @@ pub struct GraphQLResponseUser {
     pub id: Option<String>,
     #[serde(rename = "profileImageURL")]
     pub profile_image_url: Option<String>,
-    pub stream: Option<GraphQLStream>,
     #[serde(rename = "subscriptionProducts")]
     pub subscription_products: Option<Vec<SubscriptionProduct>>,
-}
-
-#[derive(Deserialize)]
-pub struct GraphQLStream {
-    pub title: String,
-    #[serde(rename = "viewersCount")]
-    pub viewers_count: u64,
-    #[serde(rename = "createdAt")]
-    pub created_at: String,
-    pub game: Option<Game>,
-}
-
-#[derive(Deserialize)]
-pub struct Game {
-    pub id: String,
-    pub name: String,
 }
 
 #[derive(Deserialize)]

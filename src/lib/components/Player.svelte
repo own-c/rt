@@ -14,7 +14,7 @@
 		LoaderCallbacks
 	} from 'hls.js';
 
-	import { watching } from '$lib/Stores.svelte';
+	let { username, url } = $props();
 
 	let player = $state() as MediaPlayerElement;
 
@@ -65,7 +65,7 @@
 
 			// context.type === 'level'
 
-			invoke<string>('proxy_stream', { username: watching.username, url: context.url })
+			invoke<string>('proxy_stream', { username: username, url: context.url })
 				.then((data) => {
 					this.stats.loaded = data.length;
 
@@ -101,33 +101,23 @@
 	});
 </script>
 
-{#key watching.url}
-	<media-player
-		bind:this={player}
-		storage="player-settings"
-		streamType="on-demand"
-		class="max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)]"
-		style="--plyr-border-radius: 0px;"
-	>
-		<media-provider>
-			<source src={watching.url} type="application/x-mpegurl" />
-		</media-provider>
+<media-player
+	bind:this={player}
+	storage="player-settings"
+	streamType="on-demand"
+	class="max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)]"
+	style="--plyr-border-radius: 0px;"
+>
+	<media-provider>
+		<source src={url} type="application/x-mpegurl" />
+	</media-provider>
 
-		<media-plyr-layout
-			displayDuration={true}
-			controls={[
-				'play',
-				'progress',
-				'current-time',
-				'mute+volume',
-				'settings',
-				'pip',
-				'fullscreen'
-			]}
-		>
-		</media-plyr-layout>
-	</media-player>
-{/key}
+	<media-plyr-layout
+		displayDuration={true}
+		controls={['play', 'progress', 'current-time', 'mute+volume', 'settings', 'pip', 'fullscreen']}
+	>
+	</media-plyr-layout>
+</media-player>
 
 <style>
 	:global(media-player video) {
