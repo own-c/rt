@@ -23,27 +23,19 @@ A Twitch and YouTube frontend written in Rust using Tauri and SvelteKit.
     </tr>
 </table>
 
+> Old screenshots.
+
 ## Features
 
 - Add users to your stream and video feeds.
 - Watch content in any of the available resolutions.
 - View Twitch chat with 7tv and BetterTTV emotes.
 - Ad blocking.
-- Open videos or streams directly in the app.
-
-## Redirects
-
-On launch, `rt` registers a protocol handler for `rt://` URLs, this allows you to open links in the app.
-
-- YouTube:
-  - `rt://yt/dQw4w9WgXcQ`, `rt://youtube/dQw4w9WgXcQ` or full links like `rt://www.youtube.com/watch?v=dQw4w9WgXcQ` and `rt://youtu.be/dQw4w9WgXcQ`.
-
-- Twitch:
-  - `rt://tw/zfg1`, `rt://twitch/zfg1` or full links like `rt://www.twitch.tv/zfg1`.
+- Open videos or streams directly in the app using `rt:://` URLs.
 
 ## Download
 
-> All installers (`exe`, `deb`, `rpm`) are provided in the same small zip file.
+> All installers (`exe`, `deb`, `rpm`) are provided in a small zip file.
 
 [Quick download.](https://nightly.link/Kyagara/rt/workflows/build.yaml/main/bundles.zip)
 
@@ -51,9 +43,28 @@ Github Actions builds are available [here](https://github.com/Kyagara/rt/actions
 
 ## About
 
-> Tested on Windows and Ubuntu, not tested on macOS.
+Tested on Windows and Ubuntu. Not tested on macOS yet.
 
-#### Data
+### Redirects
+
+On launch, a custom protocol handler is registered for `rt://` URLs, this allows you to open videos or streams directly in the app.
+
+If the app is not running, it will be started with the URL as an argument, if it is running, the URL will be opened in a new window.
+
+#### YouTube
+
+- `rt://yt/dQw4w9WgXcQ`
+- `rt://youtube/dQw4w9WgXcQ`
+- `rt://www.youtube.com/watch?v=dQw4w9WgXcQ`
+- `rt://youtu.be/dQw4w9WgXcQ`.
+
+#### Twitch
+
+- `rt://tw/zfg1`
+- `rt://twitch/zfg1`
+- `rt://www.twitch.tv/zfg1`.
+
+### Data
 
 To store users, feeds and emotes, SQLite is used with [sqlx](https://crates.io/crates/sqlx).
 
@@ -67,16 +78,21 @@ Logs are stored in the following locations:
 - Linux: `$XDG_DATA_HOME/com.rt.app/logs` or `$HOME/.local/share/com.rt.app/logs`
 - Windows: `%LocalAppData%/com.rt.app/logs`
 
-#### Frontends
+### Frontends
 
-- Youtube:
-  - Using the excellent [RustyPipe](https://crates.io/crates/rustypipe) library to interact with YouTube.
-  - The feed uses the faster YouTube's rss feed to retrieve videos to avoid rate limits, this sadly does not contain video duration.
-  - The player uses [Vidstack](https://github.com/vidstack/player) YouTube [provider](https://vidstack.io/docs/player/api/providers/youtube/) to play the videos via embeds.
+#### Youtube
 
-- Twitch:
-  - The player uses a custom [hls.js](https://github.com/video-dev/hls.js/) loader that communicates with the backend to modify the streams m3u8 manifests, this is what allows for ad blocking as the backend can detect ads and switch to a backup stream until ads are over.
-  - The backend uses a PersistedQuery for the feed and a custom query to the Twitch API to retrieve user data and stream playback.
+Using the excellent [RustyPipe](https://crates.io/crates/rustypipe) library to interact with YouTube.
+
+The feed uses the faster YouTube's rss feed to retrieve videos to avoid rate limits, this sadly does not contain video duration.
+
+The player uses [Vidstack](https://github.com/vidstack/player) YouTube [provider](https://vidstack.io/docs/player/api/providers/youtube/) to play the videos via embeds.
+
+#### Twitch
+
+The player uses a custom [hls.js](https://github.com/video-dev/hls.js/) loader that communicates with the backend to modify the streams m3u8 manifests, this is what allows for ad blocking as the backend can detect ads and switch to a backup stream until ads are over.
+
+The backend uses a PersistedQuery for the feed and a custom query to the Twitch API to retrieve user data and stream playback.
 
 ## TODO
 
