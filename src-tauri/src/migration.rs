@@ -35,7 +35,6 @@ pub fn feeds_migrations() -> Vec<Migration> {
                     id TEXT NOT NULL PRIMARY KEY,
                     username TEXT NOT NULL,
                     title TEXT,
-                    thumbnail TEXT,
                     published_at TEXT,
                     view_count TEXT
                 );

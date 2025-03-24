@@ -9,6 +9,8 @@
 	import Chat from '$lib/components/Chat.svelte';
 	import { error, info } from '$lib/components/Notification.svelte';
 
+	import { changeView } from '$lib/state/View.svelte';
+
 	let windowLabel = $state('');
 	let username = $state('');
 	let url = $state('');
@@ -50,6 +52,7 @@
 
 		const routeURL = new URL(window.location.href);
 		username = routeURL.searchParams.get('username')!;
+		changeView('streams', false);
 
 		try {
 			await invoke<string>('fetch_stream_playback', { username, backup: false }).then((data) => {

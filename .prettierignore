@@ -4,3 +4,4 @@ src-tauri
 build
 node_modules
 .github
+README.md

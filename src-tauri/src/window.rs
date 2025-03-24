@@ -9,9 +9,9 @@ use tauri::{
 
 lazy_static! {
     static ref WINDOW_ID: Mutex<u64> = Mutex::new(0);
-    static ref TWITCH_URL_REG: Regex = Regex::new(r"twitch.tv/([a-zA-Z0-9_]+)").unwrap();
+    static ref TWITCH_URL_REG: Regex = Regex::new(r"(?:https?:\/\/)?(?:www\.)?twitch\.tv\/([a-zA-Z0-9_]+)").unwrap();
     // https://stackoverflow.com/a/37704433
-    static ref YOUTUBE_URL_REG: Regex = Regex::new(r"^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube(?:-nocookie)?\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$").unwrap();
+    static ref YOUTUBE_URL_REG: Regex = Regex::new(r#"(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|embed|shorts|watch)?\??v=|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})"#).unwrap();
 }
 
 pub fn open_url(app_handle: AppHandle, urls: &[String]) -> Result<()> {
@@ -51,7 +51,7 @@ pub fn open_url(app_handle: AppHandle, urls: &[String]) -> Result<()> {
     }
 
     if let Some(caps) = YOUTUBE_URL_REG.captures(url) {
-        if let Some(m) = caps.get(5) {
+        if let Some(m) = caps.get(1) {
             let video_id = m.as_str();
             let url = format!("/videos/watch?id={video_id}");
             open_new_window(app_handle, url);
@@ -59,7 +59,7 @@ pub fn open_url(app_handle: AppHandle, urls: &[String]) -> Result<()> {
         }
     }
 
-    Ok(())
+    Err(anyhow!("No matching URL found for '{url}'"))
 }
 
 #[tauri::command]

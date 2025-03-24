@@ -52,7 +52,7 @@ pub async fn get_feed(
     }
 
     if platform == Platform::YouTube {
-        let query = "SELECT id, username, title, thumbnail, published_at, view_count FROM youtube";
+        let query = "SELECT id, username, title, published_at, view_count FROM youtube";
 
         let rows = match sqlx::query(query).fetch_all(feeds_db).await {
             Ok(rows) => rows,
@@ -68,7 +68,6 @@ pub async fn get_feed(
                 id: row.try_get("id").map_err(|e| e.to_string())?,
                 username: row.try_get("username").map_err(|e| e.to_string())?,
                 title: row.try_get("title").map_err(|e| e.to_string())?,
-                thumbnail: row.try_get("thumbnail").map_err(|e| e.to_string())?,
                 publish_date: row.try_get("published_at").map_err(|e| e.to_string())?,
                 view_count: row.try_get("view_count").map_err(|e| e.to_string())?,
             };
@@ -174,13 +173,12 @@ pub async fn refresh_feed(
             .map_err(|e| e.to_string())?;
 
         for video in videos {
-            let query = "INSERT INTO youtube (id, username, title, thumbnail, published_at, view_count) VALUES (?, ?, ?, ?, ?, ?)";
+            let query = "INSERT INTO youtube (id, username, title, published_at, view_count) VALUES (?, ?, ?, ?, ?)";
 
             sqlx::query(query)
                 .bind(&video.id)
                 .bind(&video.username)
                 .bind(&video.title)
-                .bind(&video.thumbnail)
                 .bind(&video.publish_date)
                 .bind(video.view_count)
                 .execute(feeds_db)

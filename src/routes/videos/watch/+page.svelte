@@ -1,13 +1,16 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+
 	import 'vidstack/bundle';
 
-	import { onMount } from 'svelte';
+	import { changeView } from '$lib/state/View.svelte';
 
 	let videoID = $state('');
 
 	onMount(() => {
 		const routeURL = new URL(window.location.href);
 		videoID = routeURL.searchParams.get('id')!;
+		changeView('videos', false);
 	});
 </script>
 

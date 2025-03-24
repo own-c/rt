@@ -8,7 +8,6 @@ pub struct YouTubeVideo {
     pub id: String,
     pub username: String,
     pub title: String,
-    pub thumbnail: String,
     pub publish_date: String,
     pub view_count: String,
 }
@@ -28,7 +27,6 @@ pub async fn fetch_videos(channel_ids: Vec<String>) -> Result<Vec<YouTubeVideo>>
                 id: video.id.clone(),
                 username: channel.name.clone(),
                 title: video.name.clone(),
-                thumbnail: video.thumbnail.url.clone(),
                 publish_date: video.publish_date.unix_timestamp().to_string(),
                 view_count: video.view_count.to_string(),
             };

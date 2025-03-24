@@ -3,24 +3,30 @@ import { goto } from '$app/navigation';
 // eslint-disable-next-line prefer-const
 export let currentView = $state({ id: 'streams', name: 'Streams' });
 
-export function changeView(newView: string) {
-	switch (newView) {
+export function changeView(newViewID: string, gotoURL = true, path?: string) {
+	switch (newViewID) {
 		case 'videos':
 			currentView.id = 'videos';
 			currentView.name = 'Videos';
-			goto('/videos');
+			if (gotoURL) {
+				goto(`/videos${path ? `${path}` : ''}`);
+			}
 			break;
 
 		case 'streams':
 			currentView.id = 'streams';
 			currentView.name = 'Streams';
-			goto('/streams');
+			if (gotoURL) {
+				goto(`/streams${path ? `${path}` : ''}`);
+			}
 			break;
 
 		case 'users':
 			currentView.id = 'users';
 			currentView.name = 'Users';
-			goto('/users');
+			if (gotoURL) {
+				goto('/users');
+			}
 			break;
 	}
 }
