@@ -10,6 +10,12 @@ pub fn users_migrations() -> Vec<Migration> {
                     username TEXT NOT NULL PRIMARY KEY,
                     avatar BLOB
                 );
+                
+                CREATE TABLE IF NOT EXISTS youtube (
+                    id TEXT,
+                    username TEXT NOT NULL PRIMARY KEY,
+                    avatar BLOB
+                );
             ",
         kind: MigrationKind::Up,
     }]
@@ -23,6 +29,15 @@ pub fn feeds_migrations() -> Vec<Migration> {
                 CREATE TABLE IF NOT EXISTS twitch (
                     username TEXT NOT NULL PRIMARY KEY,
                     started_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS youtube (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    username TEXT NOT NULL,
+                    title TEXT,
+                    thumbnail TEXT,
+                    published_at TEXT,
+                    view_count TEXT
                 );
             ",
         kind: MigrationKind::Up,

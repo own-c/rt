@@ -1,37 +1,25 @@
-use std::fmt::Display;
-
 use anyhow::Result;
 
 use log::error;
 use serde::{Deserialize, Serialize};
-use sqlx::{prelude::Type, Pool, Row, Sqlite};
+use sqlx::{Pool, Row, Sqlite};
 use tauri::{async_runtime::Mutex, AppHandle, Emitter, State};
 
-use crate::{twitch, util, AppState};
+use crate::{twitch, util, youtube, AppState};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 pub struct User {
     pub username: String,
     pub platform: Platform,
-    #[serde(rename = "avatarBlob")]
-    pub avatar_blob: Vec<u8>,
+    pub avatar: Vec<u8>,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Type)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
 pub enum Platform {
     #[serde(rename = "youtube")]
     YouTube,
     #[serde(rename = "twitch")]
     Twitch,
-}
-
-impl Display for Platform {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Platform::YouTube => write!(f, "youtube"),
-            Platform::Twitch => write!(f, "twitch"),
-        }
-    }
 }
 
 #[tauri::command]
@@ -42,19 +30,31 @@ pub async fn get_users(
     let state = state.lock().await;
     let users_db = state.users_db.as_ref().unwrap();
 
-    let users = match platform {
-        Some(platform) => get_users_for_platform(users_db, platform).await,
-        None => {
-            // TODO: Merge users from all platforms when adding YouTube
-            get_users_for_platform(users_db, Platform::Twitch).await
+    if let Some(platform) = platform {
+        if let Ok(users) = get_users_for_platform(users_db, platform).await {
+            Ok(users)
+        } else {
+            Err(format!("Failed to get users from {:#?}", platform))
         }
-    };
+    } else {
+        let mut users = Vec::new();
 
-    if let Err(err) = users {
-        return Err(format!("Failed to get users: {err}"));
+        match get_users_for_platform(users_db, Platform::YouTube).await {
+            Ok(new_users) => users.extend(new_users),
+            Err(err) => {
+                return Err(format!("Failed to get users from YouTube: {err}"));
+            }
+        }
+
+        match get_users_for_platform(users_db, Platform::Twitch).await {
+            Ok(new_users) => users.extend(new_users),
+            Err(err) => {
+                return Err(format!("Failed to get users from Twitch: {err}"));
+            }
+        }
+
+        Ok(users)
     }
-
-    Ok(users.unwrap())
 }
 
 #[tauri::command]
@@ -100,15 +100,42 @@ pub async fn add_user(
             .execute(users_db)
             .await
             .map_err(|e| e.to_string())?;
-
-        if let Err(err) = app_handle.emit("update_view", platform) {
-            error!("Failed to emit 'update_view' event: {err}");
-        }
-
-        return Ok(());
     }
 
-    Err(format!("Invalid platform '{platform}'"))
+    if platform == Platform::YouTube {
+        let user = match youtube::user::fetch_user(&username).await {
+            Ok(user) => user,
+            Err(err) => {
+                return Err(format!("Failed to fetch user '{username}': {err}"));
+            }
+        };
+
+        let avatar = match util::download_image(&user.avatar).await {
+            Ok(bytes) => bytes,
+            Err(err) => {
+                return Err(format!(
+                    "Failed to download avatar for user '{username}': {err}"
+                ));
+            }
+        };
+
+        let query = "INSERT INTO youtube (id, username, avatar) VALUES (?, ?, ?) ON CONFLICT (username) DO UPDATE SET avatar = ?";
+
+        sqlx::query(query)
+            .bind(&user.id)
+            .bind(&user.username)
+            .bind(&avatar)
+            .bind(&avatar)
+            .execute(users_db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if let Err(err) = app_handle.emit("updated_users", platform) {
+        error!("Failed to emit 'updated_users' event: {err}");
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -149,25 +176,46 @@ pub async fn remove_user(
             .map_err(|e| e.to_string())?;
     }
 
-    if let Err(err) = app_handle.emit("update_view", platform) {
-        return Err(format!("Error emitting 'update_view' event: {err}"));
+    if platform == Platform::YouTube {
+        let query = "DELETE FROM youtube WHERE username = ?";
+
+        sqlx::query(query)
+            .bind(&username)
+            .execute(users_db)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let query = "DELETE FROM youtube WHERE username = ?";
+
+        sqlx::query(query)
+            .bind(&username)
+            .execute(feeds_db)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if let Err(err) = app_handle.emit("updated_users", platform) {
+        return Err(format!("Error emitting 'updated_users' event: {err}"));
     }
 
     Ok(())
 }
 
 async fn get_users_for_platform(users_db: &Pool<Sqlite>, platform: Platform) -> Result<Vec<User>> {
-    let query = format!("SELECT username, avatar FROM {platform}");
+    let query = match platform {
+        Platform::YouTube => "SELECT username, avatar FROM youtube",
+        Platform::Twitch => "SELECT username, avatar FROM twitch",
+    };
 
-    let rows = sqlx::query(&query).fetch_all(users_db).await?;
+    let rows = sqlx::query(query).fetch_all(users_db).await?;
 
     let mut users: Vec<User> = Vec::with_capacity(rows.len());
 
     for row in rows {
         let user = User {
             username: row.try_get("username")?,
-            avatar_blob: row.try_get("avatar")?,
-            platform: platform.clone(),
+            avatar: row.try_get("avatar")?,
+            platform,
         };
 
         users.push(user);

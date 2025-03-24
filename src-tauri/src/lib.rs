@@ -13,6 +13,7 @@ mod twitch;
 mod user;
 mod util;
 mod window;
+mod youtube;
 
 pub struct AppState {
     pub users_db: Option<SqlitePool>,
@@ -72,6 +73,11 @@ pub fn run() {
             let app_data_path = app.path().app_data_dir()?;
 
             async_runtime::block_on(async {
+                let storage_dir = app_data_path.join("rustypipe");
+                if let Err(err) = youtube::main::build_client(&storage_dir).await {
+                    return Err(anyhow!("Failed to build youtube client: {err}"));
+                }
+
                 let users_db_path = app_data_path.join("users.db");
                 let users_db = match SqlitePool::connect(users_db_path.to_str().unwrap()).await {
                     Ok(db) => db,

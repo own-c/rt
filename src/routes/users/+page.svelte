@@ -6,7 +6,8 @@
 
 	import { error, info } from '$lib/components/Notification.svelte';
 
-	import { getAvatarUrl } from '$lib/Utils';
+	import { getAvatarUrl } from '$lib';
+	import type { Platform } from '$lib';
 
 	let users = $state([]) as User[];
 
@@ -16,7 +17,7 @@
 
 	async function updateUser(username: string, platform: Platform) {
 		try {
-			await invoke('add_user', { username: username, platform: platform });
+			await invoke('add_user', { username, platform });
 		} catch (err) {
 			error(`Error updating user '${username}'`, err as string);
 			return;
@@ -27,7 +28,7 @@
 
 	async function removeUser(username: string, platform: Platform) {
 		try {
-			await invoke('remove_user', { username: username, platform: platform });
+			await invoke('remove_user', { username, platform });
 		} catch (err) {
 			error(`Error removing user '${username}'`, err as string);
 			return;
@@ -48,7 +49,7 @@
 
 	onMount(async () => {
 		const appWebview = getCurrentWebviewWindow();
-		appWebview.listen<string>('update_view', async () => {
+		appWebview.listen<string>('updated_users', async () => {
 			await updateView();
 		});
 
@@ -78,7 +79,7 @@
 				{#if user.platform === filter}
 					<div class="flex flex-col items-center">
 						<img
-							src={getAvatarUrl(user.avatarBlob)}
+							src={getAvatarUrl(user.avatar)}
 							id={user.username}
 							alt={'Avatar of ' + user.username}
 							class="w-16 h-16 rounded-full"

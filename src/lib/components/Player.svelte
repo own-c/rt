@@ -66,8 +66,8 @@
 			// context.type === 'level'
 
 			invoke<string>('proxy_stream', {
-				windowLabel: windowLabel,
-				username: username,
+				windowLabel,
+				username,
 				url: context.url
 			})
 				.then((data) => {

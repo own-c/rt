@@ -6,12 +6,14 @@ use tauri::{async_runtime::Mutex, AppHandle, Emitter, State};
 use crate::{
     twitch::{self, stream::LiveNow},
     user::Platform,
+    youtube::{self, video::YouTubeVideo},
     AppState,
 };
 
 #[derive(Serialize)]
 pub struct Feed {
     twitch: Option<Vec<LiveNow>>,
+    youtube: Option<Vec<YouTubeVideo>>,
 }
 
 #[tauri::command]
@@ -43,10 +45,44 @@ pub async fn get_feed(
             feed.push(live_now);
         }
 
-        return Ok(Feed { twitch: Some(feed) });
+        return Ok(Feed {
+            twitch: Some(feed),
+            youtube: None,
+        });
     }
 
-    Err(format!("Invalid platform '{platform}'"))
+    if platform == Platform::YouTube {
+        let query = "SELECT id, username, title, thumbnail, published_at, view_count FROM youtube";
+
+        let rows = match sqlx::query(query).fetch_all(feeds_db).await {
+            Ok(rows) => rows,
+            Err(err) => {
+                return Err(format!("Failed to fetch feed: {err}"));
+            }
+        };
+
+        let mut feed: Vec<YouTubeVideo> = Vec::new();
+
+        for row in rows {
+            let video = YouTubeVideo {
+                id: row.try_get("id").map_err(|e| e.to_string())?,
+                username: row.try_get("username").map_err(|e| e.to_string())?,
+                title: row.try_get("title").map_err(|e| e.to_string())?,
+                thumbnail: row.try_get("thumbnail").map_err(|e| e.to_string())?,
+                publish_date: row.try_get("published_at").map_err(|e| e.to_string())?,
+                view_count: row.try_get("view_count").map_err(|e| e.to_string())?,
+            };
+
+            feed.push(video);
+        }
+
+        return Ok(Feed {
+            youtube: Some(feed),
+            twitch: None,
+        });
+    }
+
+    Err(format!("Invalid platform '{platform:#?}'"))
 }
 
 #[tauri::command]
@@ -100,10 +136,61 @@ pub async fn refresh_feed(
                 .await
                 .map_err(|e| e.to_string())?;
         }
+
+        if let Err(err) = app_handle.emit("updated_streams", &platform) {
+            return Err(format!("Error emitting 'updated_streams' event: {err}"));
+        }
     }
 
-    if let Err(err) = app_handle.emit("update_view", platform) {
-        return Err(format!("Error emitting 'update_view' event: {err}"));
+    if platform == Platform::YouTube {
+        let query = "SELECT id FROM youtube";
+
+        let rows = match sqlx::query(query).fetch_all(users_db).await {
+            Ok(rows) => rows,
+            Err(err) => {
+                return Err(format!("Failed to fetch ids from database: {err}"));
+            }
+        };
+
+        let mut channel_ids: Vec<String> = Vec::new();
+
+        for row in rows {
+            let channel_id = row.try_get("id").map_err(|e| e.to_string())?;
+            channel_ids.push(channel_id);
+        }
+
+        let videos = match youtube::video::fetch_videos(channel_ids).await {
+            Ok(videos) => videos,
+            Err(err) => {
+                return Err(format!("Failed to fetch videos: {err}"));
+            }
+        };
+
+        let query = "DELETE FROM youtube";
+
+        sqlx::query(query)
+            .execute(feeds_db)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        for video in videos {
+            let query = "INSERT INTO youtube (id, username, title, thumbnail, published_at, view_count) VALUES (?, ?, ?, ?, ?, ?)";
+
+            sqlx::query(query)
+                .bind(&video.id)
+                .bind(&video.username)
+                .bind(&video.title)
+                .bind(&video.thumbnail)
+                .bind(&video.publish_date)
+                .bind(video.view_count)
+                .execute(feeds_db)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+
+        if let Err(err) = app_handle.emit("updated_videos", platform) {
+            return Err(format!("Error emitting 'updated_videos' event: {err}"));
+        }
     }
 
     Ok(())

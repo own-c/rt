@@ -6,8 +6,10 @@
 	import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 	import { error } from '$lib/components/Notification.svelte';
+	import Grid from '$lib/components/Grid.svelte';
 
-	import { streamingFor } from '$lib/Utils';
+	import { streamingFor } from '$lib';
+	import { Platform } from '$lib';
 
 	let feed = $state([]) as LiveNow[];
 
@@ -17,7 +19,7 @@
 		loading = true;
 
 		try {
-			await invoke<Feed>('get_feed', { platform: 'twitch' }).then((data) => {
+			await invoke<Feed>('get_feed', { platform: Platform.Twitch }).then((data) => {
 				feed = data.twitch!.sort((a, b) => a.username.localeCompare(b.username));
 			});
 		} catch (err) {
@@ -40,7 +42,7 @@
 
 	onMount(async () => {
 		const appWebview = getCurrentWebviewWindow();
-		appWebview.listen<string>('update_view', async () => {
+		appWebview.listen<string>('updated_streams', async () => {
 			await updateView();
 		});
 
@@ -48,31 +50,32 @@
 	});
 </script>
 
-<div class="flex w-full h-full gap-2 p-2">
+<div data-simplebar class="flex w-full h-full gap-2 p-2">
 	{#if loading}
 		<span class="text-lg font-medium">Loading...</span>
 	{:else if feed.length === 0}
 		<span class="text-lg font-medium">No streams found</span>
 	{:else}
-		{#each feed as live_now, index (index)}
-			<div>
-				<button
-					onmousedown={async (event: MouseEvent) =>
-						await handleMouseWheelClick(event, live_now.username)}
-					onclick={async () => goto(`/streams/watch?username=${live_now.username}`)}
-					class="flex flex-col hover:bg-neutral-800 cursor-pointer"
-				>
-					<img
-						src={`https://static-cdn.jtvnw.net/previews-ttv/live_user_${live_now.username}-440x248.jpg`}
-						alt="Stream thumbnail"
-						class="max-h-32 min-h-32"
-					/>
+		<div class="w-full h-full">
+			<Grid>
+				{#each feed as live_now, index (index)}
+					<button
+						onmousedown={async (event: MouseEvent) =>
+							await handleMouseWheelClick(event, live_now.username)}
+						onclick={async () => goto(`/streams/watch?username=${live_now.username}`)}
+						class="flex flex-col hover:bg-neutral-800 cursor-pointer text-left"
+					>
+						<img
+							src={`https://static-cdn.jtvnw.net/previews-ttv/live_user_${live_now.username}-440x248.jpg`}
+							alt={`Stream thumbnail for ${live_now.username}`}
+						/>
 
-					<span class="text-lg font-bold">{live_now.username}</span>
+						<span class="text-lg font-bold">{live_now.username}</span>
 
-					<span class="text-sm text-neutral-400">{streamingFor(live_now.started_at)}</span>
-				</button>
-			</div>
-		{/each}
+						<span class="text-sm text-neutral-400">{streamingFor(live_now.started_at)}</span>
+					</button>
+				{/each}
+			</Grid>
+		</div>
 	{/if}
 </div>

@@ -52,11 +52,9 @@
 		username = routeURL.searchParams.get('username')!;
 
 		try {
-			await invoke<string>('fetch_stream_playback', { username: username, backup: false }).then(
-				(data) => {
-					url = data;
-				}
-			);
+			await invoke<string>('fetch_stream_playback', { username, backup: false }).then((data) => {
+				url = data;
+			});
 		} catch (err) {
 			error('Stream not found', err as string);
 		}

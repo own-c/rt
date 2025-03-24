@@ -3,18 +3,16 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Result};
 use lazy_static::lazy_static;
 use log::error;
-use regex::Regex;
 use tauri::{async_runtime::Mutex, AppHandle, Emitter, EventTarget};
 
 use super::{main::PROXY_HTTP_CLIENT, stream};
 
 lazy_static! {
     static ref STREAM_STATE: Mutex<HashMap<String, StreamState>> = Mutex::new(HashMap::new());
-    static ref URL_REGEX: Regex = Regex::new(r"^(https?://[^\s]+)").unwrap();
 }
 
 #[derive(Clone)]
-pub struct StreamState {
+struct StreamState {
     using_backup: bool,
     main_stream_url: Option<String>,
     backup_stream_url: Option<String>,

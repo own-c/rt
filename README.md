@@ -61,10 +61,14 @@ Logs are stored in the following locations:
 ## TODO
 
 - Maybe cache users/emotes/feeds in the AppState, also maybe return them when possible in the same request instead of emitting an update event.
-- Add YouTube as a frontend, needs:
-  - Fully working multi window support.
-  - Finish reworking the UI.
-  - Reintroduce features removed since the rework to allow for more than one window and frontend.
 - Put the seek bar at the end when joining a stream, currently it is some seconds behind when first joining.
-- Improve logging.
+- Improve layout (add information about the content somewhere in the watch page).
+- Fix titlebar view name not being set correctly when opening new watch pages from YouTube.
+- Youtube:
+  - Maybe move from youtube embed to using RustyPipe's botguard and retrieve video URLs from there.
+  - Add YouTube channel page with video search.
+  - Allow downloading videos/thumbnails.
+  - Subscribe to channel from watch page.
+  - Add pagination to videos list.
+- More logging and better errors.
 - Add global Twitch emotes.

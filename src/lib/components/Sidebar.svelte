@@ -7,6 +7,8 @@
 
 	import { currentView, changeView } from '$lib/state/View.svelte';
 
+	import { Platform } from '$lib';
+
 	let loading = $state(false);
 
 	let showAddInput = $state(false);
@@ -25,7 +27,7 @@
 	async function refreshFeed() {
 		loading = true;
 
-		const platform = currentView.id === 'streams' ? 'twitch' : 'youtube';
+		const platform = currentView.id === 'streams' ? Platform.Twitch : Platform.YouTube;
 
 		try {
 			await invoke('refresh_feed', { platform });
@@ -48,7 +50,7 @@
 		}
 
 		try {
-			await invoke('add_user', { username: username, platform: addInputPlatform });
+			await invoke('add_user', { username, platform: addInputPlatform });
 		} catch (err) {
 			error(`Error adding user '${username}'`, err as string);
 			return;

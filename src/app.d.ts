@@ -3,21 +3,26 @@ declare global {
 		id: string;
 		username: string;
 		platform: Platform;
-		avatarBlob: number[];
+		avatar: number[];
 	};
-
-	enum Platform {
-		Twitch = 'twitch',
-		YouTube = 'youtube'
-	}
 
 	type Feed = {
 		twitch: LiveNow[] | null;
+		youtube: YouTubeVideo[] | null;
 	};
 
 	type LiveNow = {
 		username: string;
 		started_at: string;
+	};
+
+	type YouTubeVideo = {
+		id: string;
+		username: string;
+		title: string;
+		thumbnail: string;
+		publish_date: string;
+		view_count: string;
 	};
 
 	type ChatEvent = {

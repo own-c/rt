@@ -102,7 +102,7 @@ pub async fn update_user_emotes(
 }
 
 #[derive(Deserialize)]
-pub struct BetterTTVResponse {
+struct BetterTTVResponse {
     #[serde(rename = "channelEmotes")]
     channel_emotes: Vec<BetterTTVEmote>,
     #[serde(rename = "sharedEmotes")]
@@ -110,7 +110,7 @@ pub struct BetterTTVResponse {
 }
 
 #[derive(Deserialize, Clone)]
-pub struct BetterTTVEmote {
+struct BetterTTVEmote {
     id: String,
     code: String,
     width: Option<i64>,
