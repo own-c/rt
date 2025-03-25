@@ -16,9 +16,11 @@
 </script>
 
 <header data-tauri-drag-region class="flex w-full min-h-8 bg-neutral-600">
-	<span class="flex items-center px-2 text-lg font-medium">{currentView.name}</span>
+	<span data-tauri-drag-region class="flex items-center px-2 text-lg font-medium"
+		>{currentView.name}</span
+	>
 
-	<div class="flex-1"></div>
+	<div data-tauri-drag-region class="flex-1"></div>
 
 	<div class="flex h-full">
 		<button
@@ -73,14 +75,3 @@
 		</button>
 	</div>
 </header>
-
-<style>
-	header {
-		-webkit-app-region: drag;
-		user-select: none;
-	}
-
-	button {
-		-webkit-app-region: no-drag;
-	}
-</style>

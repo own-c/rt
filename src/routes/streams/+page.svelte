@@ -51,9 +51,7 @@
 </script>
 
 <div data-simplebar class="flex w-full h-full gap-2 p-2">
-	{#if loading}
-		<span class="text-lg font-medium">Loading...</span>
-	{:else if feed.length === 0}
+	{#if !loading && feed.length === 0}
 		<span class="text-lg font-medium">No streams found</span>
 	{:else}
 		<div class="w-full h-full">

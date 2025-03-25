@@ -30,7 +30,6 @@
 		user-select: none;
 		-webkit-user-select: none;
 		-ms-user-select: none;
-		outline: none;
 	}
 
 	:global(.simplebar-scrollbar) {

@@ -135,9 +135,7 @@
 	<hr class="border-gray-700 w-full" />
 
 	<div class="flex gap-2 w-full">
-		{#if loading}
-			<span class="text-lg font-medium">Loading...</span>
-		{:else if users.length === 0 || users.filter((user) => user.platform === filter).length === 0}
+		{#if !loading && users.filter((user) => user.platform === filter).length === 0}
 			<span class="text-lg font-medium">No users found</span>
 		{:else}
 			<Grid>

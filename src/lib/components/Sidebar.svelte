@@ -41,7 +41,10 @@
 			aria-label="Videos"
 			title="Videos"
 			onclick={() => changeView('videos')}
-			class="flex flex-col items-center cursor-pointer hover:bg-neutral-600 w-full py-2"
+			disabled={currentView.id === 'videos'}
+			class="flex flex-col items-center w-full py-2 {currentView.id === 'videos'
+				? 'opacity-50 ease-in-out duration-100'
+				: 'hover:bg-neutral-600 cursor-pointer'}"
 		>
 			<svg xmlns="http://www.w3.org/2000/svg" width="1.5rem" height="1.5rem" viewBox="0 0 2048 2048"
 				><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
@@ -55,7 +58,10 @@
 			aria-label="Streams"
 			title="Streams"
 			onclick={() => changeView('streams')}
-			class="flex flex-col items-center cursor-pointer hover:bg-neutral-600 w-full py-2"
+			disabled={currentView.id === 'streams'}
+			class="flex flex-col items-center w-full py-2 {currentView.id === 'streams'
+				? 'opacity-50 ease-in-out duration-100'
+				: 'hover:bg-neutral-600 cursor-pointer'}"
 		>
 			<svg xmlns="http://www.w3.org/2000/svg" width="1.5rem" height="1.5rem" viewBox="0 0 2048 2048"
 				><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
@@ -69,7 +75,10 @@
 			aria-label="Users"
 			title="Users"
 			onclick={() => changeView('users')}
-			class="flex flex-col items-center cursor-pointer hover:bg-neutral-600 w-full py-2"
+			disabled={currentView.id === 'users'}
+			class="flex flex-col items-center w-full py-2 {currentView.id === 'users'
+				? 'opacity-50 ease-in-out duration-100'
+				: 'hover:bg-neutral-600 cursor-pointer'}"
 		>
 			<svg xmlns="http://www.w3.org/2000/svg" width="1.5rem" height="1.5rem" viewBox="0 0 2048 2048"
 				><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
