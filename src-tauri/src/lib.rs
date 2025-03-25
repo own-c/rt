@@ -75,7 +75,7 @@ pub fn run() {
 
             let platform = std::env::consts::OS;
             if platform == "linux" {
-                app_data_dir = app.path().config_dir()?;
+                app_data_dir = app.path().app_config_dir()?;
             }
 
             async_runtime::block_on(async {
