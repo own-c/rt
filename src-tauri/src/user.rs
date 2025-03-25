@@ -5,10 +5,11 @@ use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Row, Sqlite};
 use tauri::{async_runtime::Mutex, AppHandle, Emitter, State};
 
-use crate::{twitch, util, youtube, AppState};
+use crate::{twitch, youtube, AppState};
 
 #[derive(Serialize)]
 pub struct User {
+    pub id: String,
     pub username: String,
     pub platform: Platform,
     pub avatar: Vec<u8>,
@@ -34,7 +35,7 @@ pub async fn get_users(
         if let Ok(users) = get_users_for_platform(users_db, platform).await {
             Ok(users)
         } else {
-            Err(format!("Failed to get users from {:#?}", platform))
+            Err(format!("Failed to get users from {platform:#?}"))
         }
     } else {
         let mut users = Vec::new();
@@ -69,53 +70,34 @@ pub async fn add_user(
     let emotes_db = state.emotes_db.as_ref().unwrap();
 
     if platform == Platform::Twitch {
-        let user = match twitch::user::fetch_user(&username).await {
+        let (user, emotes) = match twitch::user::fetch_user(&username).await {
             Ok(user) => user,
             Err(err) => {
                 return Err(format!("Failed to fetch user '{username}': {err}"));
             }
         };
 
-        if let Err(err) = twitch::emote::update_user_emotes(emotes_db, &username, user.emotes).await
-        {
+        if let Err(err) = twitch::emote::update_user_emotes(emotes_db, &username, emotes).await {
             error!("Failed to save emotes for user '{username}': {err}");
         }
-
-        let avatar = match util::download_image(&user.avatar).await {
-            Ok(bytes) => bytes,
-            Err(err) => {
-                return Err(format!(
-                    "Failed to download avatar for user '{username}': {err}"
-                ));
-            }
-        };
 
         let query = "INSERT INTO twitch (id, username, avatar) VALUES (?, ?, ?) ON CONFLICT (username) DO UPDATE SET avatar = ?";
 
         sqlx::query(query)
             .bind(&user.id)
             .bind(&user.username)
-            .bind(&avatar)
-            .bind(&avatar)
+            .bind(&user.avatar)
+            .bind(&user.avatar)
             .execute(users_db)
             .await
             .map_err(|e| e.to_string())?;
     }
 
     if platform == Platform::YouTube {
-        let user = match youtube::user::fetch_user(&username).await {
+        let user = match youtube::channel::fetch_channel_by_name(&username).await {
             Ok(user) => user,
             Err(err) => {
                 return Err(format!("Failed to fetch user '{username}': {err}"));
-            }
-        };
-
-        let avatar = match util::download_image(&user.avatar).await {
-            Ok(bytes) => bytes,
-            Err(err) => {
-                return Err(format!(
-                    "Failed to download avatar for user '{username}': {err}"
-                ));
             }
         };
 
@@ -124,8 +106,8 @@ pub async fn add_user(
         sqlx::query(query)
             .bind(&user.id)
             .bind(&user.username)
-            .bind(&avatar)
-            .bind(&avatar)
+            .bind(&user.avatar)
+            .bind(&user.avatar)
             .execute(users_db)
             .await
             .map_err(|e| e.to_string())?;
@@ -203,8 +185,8 @@ pub async fn remove_user(
 
 async fn get_users_for_platform(users_db: &Pool<Sqlite>, platform: Platform) -> Result<Vec<User>> {
     let query = match platform {
-        Platform::YouTube => "SELECT username, avatar FROM youtube",
-        Platform::Twitch => "SELECT username, avatar FROM twitch",
+        Platform::YouTube => "SELECT id, username, avatar FROM youtube",
+        Platform::Twitch => "SELECT id, username, avatar FROM twitch",
     };
 
     let rows = sqlx::query(query).fetch_all(users_db).await?;
@@ -213,6 +195,7 @@ async fn get_users_for_platform(users_db: &Pool<Sqlite>, platform: Platform) -> 
 
     for row in rows {
         let user = User {
+            id: row.try_get("id")?,
             username: row.try_get("username")?,
             avatar: row.try_get("avatar")?,
             platform,

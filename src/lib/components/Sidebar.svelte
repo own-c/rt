@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { tick } from 'svelte';
 	import { fade } from 'svelte/transition';
 
 	import { error, info } from './Notification.svelte';
@@ -10,19 +9,6 @@
 	import { Platform } from '$lib';
 
 	let loading = $state(false);
-
-	let showAddInput = $state(false);
-	let addInputEl = $state() as HTMLInputElement;
-	let addInputValue = $state('');
-	let addInputPlatform = $state('twitch');
-
-	async function toggleUserInput() {
-		showAddInput = !showAddInput;
-		addInputValue = '';
-
-		await tick();
-		if (addInputEl) addInputEl.focus();
-	}
 
 	async function refreshFeed() {
 		loading = true;
@@ -38,32 +24,6 @@
 
 		loading = false;
 		info('Refreshed feed');
-	}
-
-	async function addUser(username: string) {
-		showAddInput = false;
-		loading = true;
-
-		if (!username) {
-			info('No username provided');
-			return;
-		}
-
-		try {
-			await invoke('add_user', { username, platform: addInputPlatform });
-		} catch (err) {
-			error(`Error adding user '${username}'`, err as string);
-			return;
-		}
-
-		loading = false;
-		info(`Added '${username}'`);
-	}
-
-	function handleKeyDown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && showAddInput) {
-			showAddInput = false;
-		}
 	}
 
 	async function openNewWindow() {
@@ -123,63 +83,13 @@
 	<hr class="border-gray-600 w-full" />
 
 	<div class="flex flex-col items-center w-full h-[calc(100%-10.6rem)]">
-		{#if currentView.name === 'Users'}
-			<button
-				aria-label="Add user"
-				title="Add user"
-				onclick={toggleUserInput}
-				in:fade={{ duration: 100 }}
-				class="relative flex flex-col items-center cursor-pointer hover:bg-neutral-600 w-full py-2"
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					width="1.5rem"
-					height="1.5rem"
-					viewBox="0 0 2048 2048"
-					><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
-						fill="currentColor"
-						d="M1024 0q141 0 272 36t244 104t207 160t161 207t103 245t37 272q0 141-36 272t-104 244t-160 207t-207 161t-245 103t-272 37q-141 0-272-36t-245-103t-207-160t-160-208t-103-244t-37-273q0-141 36-272t104-244t160-207t207-161T752 37t272-37m0 1920q124 0 238-32t214-90t181-140t140-181t91-214t32-239t-32-238t-90-214t-140-181t-181-140t-214-91t-239-32t-238 32t-214 90t-181 140t-140 181t-91 214t-32 239t32 238t90 214t140 182t181 140t214 90t239 32m64-961h448v128h-448v449H960v-449H512V959h448V512h128z"
-					/></svg
-				>
-
-				{#if showAddInput}
-					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-					<form
-						onsubmit={async () => await addUser(addInputValue)}
-						onclick={(e) => e.stopPropagation()}
-						onfocusin={() => (showAddInput = true)}
-						onkeydown={handleKeyDown}
-						class="absolute flex gap-1 items-center top-0 left-12 z-50 bg-gray-800 p-2 rounded-md shadow-md"
-					>
-						<input
-							bind:this={addInputEl}
-							bind:value={addInputValue}
-							type="text"
-							placeholder="Channel name"
-							spellcheck="false"
-							autocomplete="on"
-							class="px-2 py-1 w-32 bg-gray-700 rounded-md outline-none"
-						/>
-
-						<select
-							bind:value={addInputPlatform}
-							class="px-2 py-1 bg-gray-700 rounded-md outline-none"
-						>
-							<option value="twitch">Twitch</option>
-							<option value="youtube">YouTube</option>
-						</select>
-					</form>
-				{/if}
-			</button>
-		{/if}
-
-		{#if currentView.name !== 'Users'}
+		{#if currentView.id !== 'users'}
 			<button
 				aria-label="Refresh"
 				title="Refresh"
 				disabled={loading}
 				onclick={async () => await refreshFeed()}
-				in:fade={{ duration: 100 }}
+				transition:fade={{ duration: 100 }}
 				class="flex flex-col items-center cursor-pointer w-full py-2 {loading
 					? 'opacity-50'
 					: 'hover:bg-neutral-600'}"

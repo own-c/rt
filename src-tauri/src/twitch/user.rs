@@ -3,20 +3,18 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Result};
 use log::error;
 
+use crate::{
+    user::{Platform, User},
+    util,
+};
+
 use super::{
     emote::{self, Emote, TWITCH_EMOTES_CDN},
     main,
     query::{GraphQLQuery, GraphQLResponse},
 };
 
-pub struct TwitchUser {
-    pub id: String,
-    pub username: String,
-    pub avatar: String,
-    pub emotes: HashMap<String, Emote>,
-}
-
-pub async fn fetch_user(username: &str) -> Result<TwitchUser> {
+pub async fn fetch_user(username: &str) -> Result<(User, HashMap<String, Emote>)> {
     let gql = GraphQLQuery::full_user(username);
 
     let response: GraphQLResponse = match main::send_query(gql).await {
@@ -68,12 +66,14 @@ pub async fn fetch_user(username: &str) -> Result<TwitchUser> {
     user_emotes.extend(seventv_emotes);
     user_emotes.extend(bettertv_emotes);
 
-    let user = TwitchUser {
+    let avatar = util::download_image(&user.profile_image_url.unwrap_or_default()).await?;
+
+    let user = User {
         id: user_id,
         username: username.to_string(),
-        avatar: user.profile_image_url.unwrap_or_default(),
-        emotes: user_emotes,
+        avatar,
+        platform: Platform::Twitch,
     };
 
-    Ok(user)
+    Ok((user, user_emotes))
 }

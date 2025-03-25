@@ -80,7 +80,7 @@ Logs are stored in the following locations:
 
 ### Frontends
 
-#### Youtube
+#### YouTube
 
 Using the excellent [RustyPipe](https://crates.io/crates/rustypipe) library to interact with YouTube.
 
@@ -101,7 +101,7 @@ The backend uses a PersistedQuery for the feed and a custom query to the Twitch 
 - Improve layout (add information about the content somewhere in the watch page).
 - Maybe cache users/emotes/feeds in the AppState, also maybe return them when possible in the same request instead of emitting an update event.
 - More logging and better errors.
-- Youtube:
+- YouTube:
   - Maybe move from youtube embed to using RustyPipe's botguard and retrieve video URLs using it.
   - Add YouTube channel page with video search.
   - Allow downloading videos/thumbnails.

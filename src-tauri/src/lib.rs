@@ -49,6 +49,7 @@ pub fn run() {
                 .add_migrations("sqlite:emotes.db", migration::emotes_migrations())
                 .build(),
         )
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
@@ -70,15 +71,20 @@ pub fn run() {
             #[cfg(desktop)]
             app.deep_link().register("rt")?;
 
-            let app_data_path = app.path().app_data_dir()?;
+            let mut app_data_dir = app.path().app_data_dir()?;
+
+            let platform = std::env::consts::OS;
+            if platform == "linux" {
+                app_data_dir = app.path().config_dir()?;
+            }
 
             async_runtime::block_on(async {
-                let storage_dir = app_data_path.join("rustypipe");
+                let storage_dir = app_data_dir.join("rustypipe");
                 if let Err(err) = youtube::main::build_client(&storage_dir).await {
                     return Err(anyhow!("Failed to build youtube client: {err}"));
                 }
 
-                let users_db_path = app_data_path.join("users.db");
+                let users_db_path = app_data_dir.join("users.db");
                 let users_db = match SqlitePool::connect(users_db_path.to_str().unwrap()).await {
                     Ok(db) => db,
                     Err(err) => {
@@ -86,7 +92,7 @@ pub fn run() {
                     }
                 };
 
-                let feeds_db_path = app_data_path.join("feeds.db");
+                let feeds_db_path = app_data_dir.join("feeds.db");
                 let feeds_db = match SqlitePool::connect(feeds_db_path.to_str().unwrap()).await {
                     Ok(db) => db,
                     Err(err) => {
@@ -94,7 +100,7 @@ pub fn run() {
                     }
                 };
 
-                let emotes_db_path = app_data_path.join("emotes.db");
+                let emotes_db_path = app_data_dir.join("emotes.db");
                 let emotes_db = match SqlitePool::connect(emotes_db_path.to_str().unwrap()).await {
                     Ok(db) => db,
                     Err(err) => {
@@ -123,6 +129,7 @@ pub fn run() {
             twitch::stream::fetch_stream_playback,
             twitch::proxy::proxy_stream,
             twitch::chat::join_chat,
+            youtube::main::import_subscriptions,
         ])
         .run(tauri::generate_context!())
         .expect("while running tauri application");
