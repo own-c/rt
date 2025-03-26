@@ -59,7 +59,7 @@
 				<button
 					onmousedown={async (event: MouseEvent) =>
 						await handleMouseWheelClick(event, live_now.username)}
-					onclick={async () => goto(`/streams/watch?username=${live_now.username}`)}
+					onclick={() => goto(`/streams/watch?username=${live_now.username}`)}
 					class="flex cursor-pointer flex-col text-left hover:bg-neutral-800"
 				>
 					<img
@@ -67,9 +67,11 @@
 						alt={`Stream thumbnail for ${live_now.username}`}
 					/>
 
-					<span class="text-lg font-bold">{live_now.username}</span>
+					<div class="flex flex-col p-1">
+						<span class="text-lg font-bold">{live_now.username}</span>
 
-					<span class="text-sm text-neutral-400">{streamingFor(live_now.started_at)}</span>
+						<span class="text-sm text-neutral-400">{streamingFor(live_now.started_at)}</span>
+					</div>
 				</button>
 			{/each}
 		</Grid>

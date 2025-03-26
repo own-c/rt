@@ -7,7 +7,7 @@
 
 	import SimpleBar from 'simplebar';
 
-	let { username } = $props();
+	let { username, toggleChat } = $props();
 
 	let messages: ChatMessage[] = $state([]);
 	let tempMessages: ChatMessage[] = $state([]);
@@ -105,8 +105,19 @@
 	});
 </script>
 
-<div class="flex h-full flex-col border-l-2 border-white/20 text-sm" style="user-select: text;">
-	<div class="h-8"></div>
+<div class="flex h-full flex-col border-l-2 border-white/20 text-sm select-text">
+	<div class="flex">
+		<div class="flex-1"></div>
+
+		<button title="Hide chat" class="p-2 hover:bg-neutral-700" onclick={toggleChat}>
+			<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 2048 2048"
+				><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
+					fill="currentColor"
+					d="m903 146l879 878l-879 878l121 121l999-999l-999-999zm-853 0l878 878l-878 878l121 121l999-999L171 25z"
+				/></svg
+			>
+		</button>
+	</div>
 
 	<hr class="w-full border-white/20" />
 
@@ -157,7 +168,7 @@
 
 	{#if !autoScroll}
 		<button
-			class="absolute bottom-0 left-1/2 z-50 -translate-x-1/2 transform cursor-pointer rounded-md bg-slate-800/80 p-1 text-center text-white shadow-lg hover:bg-slate-600/90"
+			class="absolute right-0 bottom-0 z-50 -translate-x-1/2 transform cursor-pointer rounded-md bg-slate-800/80 p-1 text-center text-white shadow-lg hover:bg-slate-600/90"
 			onclick={() => {
 				simpleBarInstance.scrollTop = simpleBarInstance.scrollHeight;
 			}}

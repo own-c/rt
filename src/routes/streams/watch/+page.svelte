@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { fade } from 'svelte/transition';
 
 	import { invoke } from '@tauri-apps/api/core';
 	import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
@@ -76,7 +75,7 @@
 		</div>
 
 		<div class="max-w-1/5 min-w-1/5" hidden={!showChat}>
-			<Chat {username} />
+			<Chat {username} {toggleChat} />
 		</div>
 	{/if}
 </div>
@@ -86,28 +85,11 @@
 		title="Expand chat"
 		class="fixed top-8 right-0 z-50 p-2 hover:bg-neutral-700"
 		onclick={toggleChat}
-		in:fade={{ duration: 25 }}
-		out:fade={{ duration: 200 }}
 	>
 		<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 2048 2048"
 			><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
 				fill="currentColor"
 				d="m1170 146l-879 878l879 878l-121 121l-999-999l999-999zm853 0l-878 878l878 878l-121 121l-999-999l999-999z"
-			/></svg
-		>
-	</button>
-{/if}
-
-{#if showChat}
-	<button
-		title="Hide chat"
-		class="fixed top-8 right-0 z-50 p-2 hover:bg-neutral-700"
-		onclick={toggleChat}
-	>
-		<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 2048 2048"
-			><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
-				fill="currentColor"
-				d="m903 146l879 878l-879 878l121 121l999-999l-999-999zm-853 0l878 878l-878 878l121 121l999-999L171 25z"
 			/></svg
 		>
 	</button>

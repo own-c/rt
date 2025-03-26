@@ -1,12 +1,16 @@
 <script lang="ts">
+	import { page } from '$app/stores';
 	import { fade } from 'svelte/transition';
 
-	import { error, info } from './Notification.svelte';
 	import { invoke } from '@tauri-apps/api/core';
+
+	import { error, info } from './Notification.svelte';
 
 	import { currentView, changeView } from '$lib/state/View.svelte';
 
 	import { Platform } from '$lib';
+
+	let path = $state($page.url.pathname);
 
 	let loading = $state(false);
 
@@ -33,6 +37,10 @@
 			error('Error opening new window', err as string);
 		}
 	}
+
+	$effect(() => {
+		path = $page.url.pathname;
+	});
 </script>
 
 <aside class="user-select-none flex w-12 min-w-12 flex-col items-center gap-2 bg-neutral-800">
@@ -41,8 +49,8 @@
 			aria-label="Videos"
 			title="Videos"
 			onclick={() => changeView('videos')}
-			disabled={currentView.id === 'videos'}
-			class="flex w-full flex-col items-center py-2 {currentView.id === 'videos'
+			disabled={path === '/videos'}
+			class="flex w-full flex-col items-center py-2 {path === '/videos'
 				? 'opacity-50 duration-100 ease-in-out'
 				: 'cursor-pointer hover:bg-neutral-600'}"
 		>
@@ -58,8 +66,8 @@
 			aria-label="Streams"
 			title="Streams"
 			onclick={() => changeView('streams')}
-			disabled={currentView.id === 'streams'}
-			class="flex w-full flex-col items-center py-2 {currentView.id === 'streams'
+			disabled={path === '/streams'}
+			class="flex w-full flex-col items-center py-2 {path === '/streams'
 				? 'opacity-50 duration-100 ease-in-out'
 				: 'cursor-pointer hover:bg-neutral-600'}"
 		>

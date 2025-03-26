@@ -7,7 +7,7 @@
 <div class="container mx-auto">
 	<div
 		class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-		in:fade={{ duration: 200 }}
+		in:fade={{ duration: 100 }}
 	>
 		{@render children()}
 	</div>
