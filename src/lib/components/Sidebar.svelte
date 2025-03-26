@@ -91,14 +91,14 @@
 
 	<hr class="border-gray-600 w-full" />
 
-	<div class="flex flex-col items-center w-full h-[calc(100%-10.6rem)]">
-		{#if currentView.id !== 'users'}
+	<div class="flex flex-col items-center w-full h-full">
+		{#if currentView.id === 'streams' || currentView.id === 'videos'}
 			<button
 				aria-label="Refresh"
 				title="Refresh"
 				disabled={loading}
 				onclick={async () => await refreshFeed()}
-				transition:fade={{ duration: 100 }}
+				transition:fade={{ duration: 50 }}
 				class="flex flex-col items-center cursor-pointer w-full py-2 {loading
 					? 'opacity-50'
 					: 'hover:bg-neutral-600'}"
@@ -116,7 +116,7 @@
 			</button>
 		{/if}
 
-		<div class=" flex-1"></div>
+		<div class="flex-1"></div>
 
 		<button
 			aria-label="Open new window"

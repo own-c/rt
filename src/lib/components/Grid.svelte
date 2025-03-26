@@ -6,7 +6,7 @@
 
 <div class="container mx-auto">
 	<div
-		class="grid gap-2 grid-cols-[repeat(auto-fill,minmax(150px,1fr))]"
+		class="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
 		in:fade={{ duration: 200 }}
 	>
 		{@render children()}

@@ -54,26 +54,24 @@
 	{#if !loading && feed.length === 0}
 		<span class="text-lg font-medium">No streams found</span>
 	{:else}
-		<div class="w-full h-full">
-			<Grid>
-				{#each feed as live_now, index (index)}
-					<button
-						onmousedown={async (event: MouseEvent) =>
-							await handleMouseWheelClick(event, live_now.username)}
-						onclick={async () => goto(`/streams/watch?username=${live_now.username}`)}
-						class="flex flex-col hover:bg-neutral-800 cursor-pointer text-left"
-					>
-						<img
-							src={`https://static-cdn.jtvnw.net/previews-ttv/live_user_${live_now.username}-440x248.jpg`}
-							alt={`Stream thumbnail for ${live_now.username}`}
-						/>
+		<Grid>
+			{#each feed as live_now, index (index)}
+				<button
+					onmousedown={async (event: MouseEvent) =>
+						await handleMouseWheelClick(event, live_now.username)}
+					onclick={async () => goto(`/streams/watch?username=${live_now.username}`)}
+					class="flex flex-col hover:bg-neutral-800 cursor-pointer text-left"
+				>
+					<img
+						src={`https://static-cdn.jtvnw.net/previews-ttv/live_user_${live_now.username}-440x248.jpg`}
+						alt={`Stream thumbnail for ${live_now.username}`}
+					/>
 
-						<span class="text-lg font-bold">{live_now.username}</span>
+					<span class="text-lg font-bold">{live_now.username}</span>
 
-						<span class="text-sm text-neutral-400">{streamingFor(live_now.started_at)}</span>
-					</button>
-				{/each}
-			</Grid>
-		</div>
+					<span class="text-sm text-neutral-400">{streamingFor(live_now.started_at)}</span>
+				</button>
+			{/each}
+		</Grid>
 	{/if}
 </div>

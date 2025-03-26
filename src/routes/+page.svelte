@@ -63,7 +63,7 @@
 			if (current && current[0]) {
 				await handleURL(current[0]);
 			} else {
-				changeView('streams');
+				changeView(localStorage.getItem('lastView') || 'videos');
 			}
 		} catch (err) {
 			error('Error handling URL', err as string);

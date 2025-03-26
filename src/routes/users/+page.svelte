@@ -134,7 +134,7 @@
 
 	<hr class="border-gray-700 w-full" />
 
-	<div class="flex gap-2 w-full">
+	<div class="flex w-full">
 		{#if !loading && users.filter((user) => user.platform === filter).length === 0}
 			<span class="text-lg font-medium">No users found</span>
 		{:else}

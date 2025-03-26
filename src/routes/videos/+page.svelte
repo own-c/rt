@@ -51,36 +51,36 @@
 	});
 </script>
 
-<div data-simplebar class="flex w-full h-full gap-2 p-2">
+<div data-simplebar class="flex w-full h-full p-2">
 	{#if !loading && feed.length === 0}
 		<span class="text-lg font-medium">No videos found</span>
 	{:else}
-		<div class="w-full h-full">
-			<Grid>
-				{#each feed as video, index (index)}
-					<button
-						onmousedown={async (event: MouseEvent) => await handleMouseWheelClick(event, video.id)}
-						onclick={async () => goto(`/videos/watch?id=${video.id}`)}
-						class="flex flex-col hover:bg-neutral-800 cursor-pointer text-left"
-					>
-						<img
-							src={`https://i.ytimg.com/vi/${video.id}/mqdefault.jpg`}
-							alt={`Video thumbnail for ${video.id}`}
-						/>
+		<Grid>
+			{#each feed as video, index (index)}
+				<button
+					onmousedown={async (event: MouseEvent) => await handleMouseWheelClick(event, video.id)}
+					onclick={() => goto(`/videos/watch?id=${video.id}`)}
+					class="flex flex-col hover:bg-neutral-800 cursor-pointer text-left"
+				>
+					<img
+						src={`https://i.ytimg.com/vi/${video.id}/mqdefault.jpg`}
+						alt={`Video thumbnail for ${video.id}`}
+					/>
 
-						<span title={video.title} class="text-md font-semibold text-elipsis">
+					<div class="flex flex-col p-1">
+						<span title={video.title} class="text-md font-semibold text-pretty">
 							{video.title}
 						</span>
 
-						<span class="text-xs">
+						<span class="text-xs pb-2">
 							{video.username}
 							{video.view_count ? `- ${video.view_count} views` : ''} - {timeAgo(
 								video.publish_date
 							)}
 						</span>
-					</button>
-				{/each}
-			</Grid>
-		</div>
+					</div>
+				</button>
+			{/each}
+		</Grid>
 	{/if}
 </div>

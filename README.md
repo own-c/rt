@@ -51,14 +51,14 @@ On launch, a custom protocol handler is registered for `rt://` URLs, this allows
 
 If the app is not running, it will be started with the URL as an argument, if it is running, the URL will be opened in a new window.
 
-#### YouTube
+`YouTube`:
 
 - `rt://yt/dQw4w9WgXcQ`
 - `rt://youtube/dQw4w9WgXcQ`
 - `rt://www.youtube.com/watch?v=dQw4w9WgXcQ`
 - `rt://youtu.be/dQw4w9WgXcQ`
 
-#### Twitch
+`Twitch`:
 
 - `rt://tw/zfg1`
 - `rt://twitch/zfg1`
@@ -66,53 +66,51 @@ If the app is not running, it will be started with the URL as an argument, if it
 
 If using extensions like [LibRedirect](https://github.com/libredirect/browser_extension), you can set a frontend for YouTube like Invidious and set the instance URL to `rt://yt`. The same can be done for Twitch, you can set the frontend to SafeTwitch and set the instance URL to `rt://tw`.
 
-### Data
+### Paths
 
 To store users, feeds and emotes, SQLite is used with [sqlx](https://crates.io/crates/sqlx).
 
-Application data is stored in the following locations:
+Data (databases, window state, etc):
 
 - Windows: `%AppData%/com.rt.app`
 - Linux: `~/.config/com.rt.app`
 
-Logs are stored in the following locations:
+Logs:
 
-- Linux: `$XDG_DATA_HOME/com.rt.app/logs` or `$HOME/.local/share/com.rt.app/logs`
 - Windows: `%LocalAppData%/com.rt.app/logs`
+- Linux: `$XDG_DATA_HOME/com.rt.app/logs` or `$HOME/.local/share/com.rt.app/logs`
 
 ### Frontends
 
-#### YouTube
+`YouTube`:
 
 Using the excellent [RustyPipe](https://crates.io/crates/rustypipe) library to interact with YouTube.
 
 The feed uses the faster YouTube's rss feed to retrieve videos to avoid rate limits, this sadly does not contain video duration.
 
-The player uses Vidstack's YouTube [provider](https://vidstack.io/docs/player/api/providers/youtube/) to play videos via embeds, this has the drawback of not being able to play videos that disallows embedding.
+The player uses Vidstack's YouTube [provider](https://vidstack.io/docs/player/api/providers/youtube/) to play videos via embeds, this has the drawbacks of not being able to play videos that disallows embedding and not being able to select a video quality.
 
-#### Twitch
+`Twitch`:
 
-The player uses a custom [hls.js](https://github.com/video-dev/hls.js/) loader that communicates with the backend to modify the streams m3u8 manifests, this is what allows for ad blocking as the backend can detect ads and switch to a backup stream until ads are over.
+The player uses a custom [hls.js](https://github.com/video-dev/hls.js/) loader that communicates with the backend to modify the streams m3u8 manifests, this is what allows for ad blocking as the backend can detect ads and switch to a backup stream until ads are over, this was inspired on [TwitchAdSolutions](https://github.com/pixeltris/TwitchAdSolutions) method of switching streams.
 
 The backend uses a PersistedQuery for the feed and a custom query to the Twitch API to retrieve user data and stream playback.
 
 ## TODO
 
 - Update screenshots.
-- Refactor Player component for both frontends.
-- Improve layout (add information about the content somewhere in the watch page).
+- Refactor Player component for both frontends, might also make a custom layout using tailwind.
+- Add information about the content somewhere in the watch page.
 - Maybe cache users/emotes/feeds in the AppState, also maybe return them when possible in the same request instead of emitting an update event.
 - More logging and better errors.
-- Set a limit to the amount of collumns in the Grid component.
 - YouTube:
   - Maybe move from youtube embed to using RustyPipe's botguard and retrieve video URLs using it.
   - Add YouTube channel page with video search.
-  - Allow downloading videos/thumbnails.
+  - Allow downloading videos and thumbnails.
   - Subscribe to channel from watch page.
   - Add pagination to videos list.
-  - Player needs improvements.
 - Twitch:
   - If possible, use a persisted query to retrieve stream playback.
-  - It seems there are issues with the `avif` format in emotes in Linux, maybe use `webp`, `png` instead.
+  - It seems there are issues with the `avif` format in emotes in Linux, maybe use `webp` or `png` instead.
   - Put the seek bar at the end when joining a stream, currently it is some seconds behind when first joining.
   - Add global Twitch emotes.
