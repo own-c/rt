@@ -109,7 +109,6 @@
 	bind:this={player}
 	storage="player-settings"
 	streamType="on-demand"
-	class="max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)]"
 	style="--plyr-border-radius: 0px;"
 >
 	<media-provider>

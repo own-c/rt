@@ -99,40 +99,40 @@
 	});
 </script>
 
-<div class="flex flex-col h-full w-full p-2 gap-3">
-	<div class="flex gap-2 items-center mx-4">
+<div class="flex h-full w-full flex-col gap-3 p-2">
+	<div class="mx-4 flex items-center gap-2">
 		<select
 			bind:value={filter}
-			class="py-1 px-2 border border-gray-600 bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+			class="rounded-md border border-gray-600 bg-gray-800 px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:outline-none"
 		>
 			<option value={Platform.Twitch} class="bg-gray-800">Twitch</option>
 			<option value={Platform.YouTube} class="bg-gray-800">YouTube</option>
 		</select>
 
-		<hr class="border-gray-700 h-full mx-1" />
+		<hr class="mx-1 h-full border-gray-700" />
 
-		<form onsubmit={async () => await addUser(channelName)} class="flex gap-2 items-center">
+		<form onsubmit={async () => await addUser(channelName)} class="flex items-center gap-2">
 			<span class="font-medium">Add user:</span>
 
 			<input
 				type="text"
 				bind:value={channelName}
 				placeholder="Channel name"
-				class="px-3 py-1 border border-gray-600 bg-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+				class="rounded-md border border-gray-600 bg-gray-800 px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:outline-none"
 			/>
 		</form>
 
 		{#if filter === Platform.YouTube}
 			<button
 				onclick={async () => await importSubscriptions()}
-				class="bg-gray-800 py-1 px-4 border border-gray-600 rounded-md hover:outline-none hover:ring-2 hover:ring-blue-500 cursor-pointer"
+				class="cursor-pointer rounded-md border border-gray-600 bg-gray-800 px-4 py-1 hover:ring-2 hover:ring-blue-500 hover:outline-none"
 			>
 				Import subscriptions
 			</button>
 		{/if}
 	</div>
 
-	<hr class="border-gray-700 w-full" />
+	<hr class="w-full border-gray-700" />
 
 	<div class="flex w-full">
 		{#if !loading && users.filter((user) => user.platform === filter).length === 0}
@@ -146,10 +146,10 @@
 								src={getAvatarUrl(user.avatar)}
 								id={user.username}
 								alt={'Avatar of ' + user.username}
-								class="w-16 h-16 rounded-full"
+								class="h-16 w-16 rounded-full"
 							/>
 
-							<div class="flex flex-col w-full items-center justify-between">
+							<div class="flex w-full flex-col items-center justify-between">
 								<span class="text-lg font-medium">{user.username}</span>
 
 								<div class="flex w-full">
@@ -158,7 +158,7 @@
 										title={filter === Platform.Twitch
 											? 'Update emotes and avatar'
 											: 'Update avatar'}
-										class="block w-full px-2 py-1 bg-neutral-500 hover:bg-neutral-600 cursor-pointer"
+										class="block w-full cursor-pointer bg-neutral-500 px-2 py-1 hover:bg-neutral-600"
 										onclick={async () => await updateUser(user.username, user.platform)}
 									>
 										Update
@@ -167,7 +167,7 @@
 									<button
 										disabled={loading}
 										title="Remove user"
-										class="block px-2 py-1 bg-red-500 hover:bg-red-600 cursor-pointer"
+										class="block cursor-pointer bg-red-500 px-2 py-1 hover:bg-red-600"
 										onclick={async () => await removeUser(user.username, user.platform)}
 									>
 										<svg

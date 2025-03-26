@@ -37,7 +37,7 @@
 		tabindex="-1"
 		in:fly={{ y: 20, duration: 200 }}
 		out:fade={{ duration: 100 }}
-		class="fixed bottom-4 left-1/2 transform -translate-x-1/2 rounded-lg shadow-lg bg-black/60 text-white text-center p-2 z-100"
+		class="fixed bottom-4 left-1/2 z-100 -translate-x-1/2 transform rounded-lg bg-black/60 p-2 text-center shadow-lg"
 	>
 		{notificationMessage}
 	</div>

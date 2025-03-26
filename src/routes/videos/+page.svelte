@@ -51,7 +51,7 @@
 	});
 </script>
 
-<div data-simplebar class="flex w-full h-full p-2">
+<div data-simplebar class="flex h-full w-full p-2">
 	{#if !loading && feed.length === 0}
 		<span class="text-lg font-medium">No videos found</span>
 	{:else}
@@ -60,7 +60,7 @@
 				<button
 					onmousedown={async (event: MouseEvent) => await handleMouseWheelClick(event, video.id)}
 					onclick={() => goto(`/videos/watch?id=${video.id}`)}
-					class="flex flex-col hover:bg-neutral-800 cursor-pointer text-left"
+					class="flex cursor-pointer flex-col text-left hover:bg-neutral-800"
 				>
 					<img
 						src={`https://i.ytimg.com/vi/${video.id}/mqdefault.jpg`}
@@ -72,7 +72,7 @@
 							{video.title}
 						</span>
 
-						<span class="text-xs pb-2">
+						<span class="pb-2 text-xs">
 							{video.username}
 							{video.view_count ? `- ${video.view_count} views` : ''} - {timeAgo(
 								video.publish_date

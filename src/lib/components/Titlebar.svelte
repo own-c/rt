@@ -15,7 +15,7 @@
 	});
 </script>
 
-<header data-tauri-drag-region class="flex w-full min-h-8 bg-neutral-600">
+<header data-tauri-drag-region class="flex min-h-8 w-full bg-neutral-600">
 	<span data-tauri-drag-region class="flex items-center px-2 text-lg font-medium"
 		>{currentView.name}</span
 	>

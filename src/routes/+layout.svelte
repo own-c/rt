@@ -11,13 +11,13 @@
 	let { children } = $props();
 </script>
 
-<div class="flex flex-col h-screen w-screen bg-neutral-950 text-white">
+<div class="flex h-screen w-screen flex-col bg-neutral-950 text-white">
 	<Titlebar />
 
-	<div class="flex flex-1 min-h-0">
+	<div class="flex min-h-0 flex-1">
 		<Sidebar />
 
-		<main class="flex w-full h-full min-h-0 overflow-auto">
+		<main class="flex h-full min-h-0 w-full overflow-auto">
 			{@render children()}
 		</main>
 	</div>

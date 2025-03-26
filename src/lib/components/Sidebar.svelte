@@ -35,16 +35,16 @@
 	}
 </script>
 
-<aside class="flex flex-col items-center w-12 min-w-12 bg-neutral-800 gap-2 user-select-none">
-	<div class="flex flex-col items-center w-full">
+<aside class="user-select-none flex w-12 min-w-12 flex-col items-center gap-2 bg-neutral-800">
+	<div class="flex w-full flex-col items-center">
 		<button
 			aria-label="Videos"
 			title="Videos"
 			onclick={() => changeView('videos')}
 			disabled={currentView.id === 'videos'}
-			class="flex flex-col items-center w-full py-2 {currentView.id === 'videos'
-				? 'opacity-50 ease-in-out duration-100'
-				: 'hover:bg-neutral-600 cursor-pointer'}"
+			class="flex w-full flex-col items-center py-2 {currentView.id === 'videos'
+				? 'opacity-50 duration-100 ease-in-out'
+				: 'cursor-pointer hover:bg-neutral-600'}"
 		>
 			<svg xmlns="http://www.w3.org/2000/svg" width="1.5rem" height="1.5rem" viewBox="0 0 2048 2048"
 				><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
@@ -59,9 +59,9 @@
 			title="Streams"
 			onclick={() => changeView('streams')}
 			disabled={currentView.id === 'streams'}
-			class="flex flex-col items-center w-full py-2 {currentView.id === 'streams'
-				? 'opacity-50 ease-in-out duration-100'
-				: 'hover:bg-neutral-600 cursor-pointer'}"
+			class="flex w-full flex-col items-center py-2 {currentView.id === 'streams'
+				? 'opacity-50 duration-100 ease-in-out'
+				: 'cursor-pointer hover:bg-neutral-600'}"
 		>
 			<svg xmlns="http://www.w3.org/2000/svg" width="1.5rem" height="1.5rem" viewBox="0 0 2048 2048"
 				><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
@@ -76,9 +76,9 @@
 			title="Users"
 			onclick={() => changeView('users')}
 			disabled={currentView.id === 'users'}
-			class="flex flex-col items-center w-full py-2 {currentView.id === 'users'
-				? 'opacity-50 ease-in-out duration-100'
-				: 'hover:bg-neutral-600 cursor-pointer'}"
+			class="flex w-full flex-col items-center py-2 {currentView.id === 'users'
+				? 'opacity-50 duration-100 ease-in-out'
+				: 'cursor-pointer hover:bg-neutral-600'}"
 		>
 			<svg xmlns="http://www.w3.org/2000/svg" width="1.5rem" height="1.5rem" viewBox="0 0 2048 2048"
 				><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path
@@ -89,9 +89,9 @@
 		</button>
 	</div>
 
-	<hr class="border-gray-600 w-full" />
+	<hr class="w-full border-gray-600" />
 
-	<div class="flex flex-col items-center w-full h-full">
+	<div class="flex h-full w-full flex-col items-center">
 		{#if currentView.id === 'streams' || currentView.id === 'videos'}
 			<button
 				aria-label="Refresh"
@@ -99,7 +99,7 @@
 				disabled={loading}
 				onclick={async () => await refreshFeed()}
 				transition:fade={{ duration: 50 }}
-				class="flex flex-col items-center cursor-pointer w-full py-2 {loading
+				class="flex w-full cursor-pointer flex-col items-center py-2 {loading
 					? 'opacity-50'
 					: 'hover:bg-neutral-600'}"
 			>
@@ -122,7 +122,7 @@
 			aria-label="Open new window"
 			title="Open new window"
 			onclick={async () => await openNewWindow()}
-			class="flex flex-col items-center cursor-pointer py-2 w-full hover:bg-neutral-600"
+			class="flex w-full cursor-pointer flex-col items-center py-2 hover:bg-neutral-600"
 		>
 			<svg xmlns="http://www.w3.org/2000/svg" width="1.5rem" height="1.5rem" viewBox="0 0 2048 2048"
 				><!-- Icon from Fluent UI MDL2 by Microsoft Corporation - https://github.com/microsoft/fluentui/blob/master/packages/react-icons-mdl2/LICENSE --><path

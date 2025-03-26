@@ -34,7 +34,7 @@
 		}, 2000);
 	}
 
-	onMount(async () => {
+	onMount(() => {
 		const appWebview = getCurrentWebviewWindow();
 		windowLabel = appWebview.label;
 
@@ -55,26 +55,36 @@
 		changeView('streams', false);
 
 		try {
-			await invoke<string>('fetch_stream_playback', { username, backup: false }).then((data) => {
+			invoke<string>('fetch_stream_playback', { username, backup: false }).then((data) => {
 				url = data;
 			});
 		} catch (err) {
 			error('Stream not found', err as string);
 		}
+
+		document.addEventListener('mousemove', handleMousemove);
+		return () => {
+			document.removeEventListener('mousemove', handleMousemove);
+		};
 	});
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="flex w-full h-full" onmousemove={handleMousemove}>
+<div class="flex h-full w-full">
 	{#if url}
-		<Player {windowLabel} {username} {url} />
+		<div class="flex min-h-0 min-w-0 flex-1">
+			<Player {windowLabel} {username} {url} />
+		</div>
+
+		<div class="max-w-1/5 min-w-1/5" hidden={!showChat}>
+			<Chat {username} />
+		</div>
 	{/if}
 </div>
 
 {#if movingMouse && !showChat}
 	<button
 		title="Expand chat"
-		class="fixed top-8 right-0 p-2 z-50 hover:bg-neutral-700"
+		class="fixed top-8 right-0 z-50 p-2 hover:bg-neutral-700"
 		onclick={toggleChat}
 		in:fade={{ duration: 25 }}
 		out:fade={{ duration: 200 }}
@@ -91,7 +101,7 @@
 {#if showChat}
 	<button
 		title="Hide chat"
-		class="fixed top-8 right-0 p-2 z-50 hover:bg-neutral-700"
+		class="fixed top-8 right-0 z-50 p-2 hover:bg-neutral-700"
 		onclick={toggleChat}
 	>
 		<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 2048 2048"
@@ -102,9 +112,3 @@
 		>
 	</button>
 {/if}
-
-<div class="h-full min-w-1/5 max-w-1/5" hidden={!showChat}>
-	{#if url}
-		<Chat {username} />
-	{/if}
-</div>

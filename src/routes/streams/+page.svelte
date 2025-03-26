@@ -50,7 +50,7 @@
 	});
 </script>
 
-<div data-simplebar class="flex w-full h-full gap-2 p-2">
+<div data-simplebar class="flex h-full w-full gap-2 p-2">
 	{#if !loading && feed.length === 0}
 		<span class="text-lg font-medium">No streams found</span>
 	{:else}
@@ -60,7 +60,7 @@
 					onmousedown={async (event: MouseEvent) =>
 						await handleMouseWheelClick(event, live_now.username)}
 					onclick={async () => goto(`/streams/watch?username=${live_now.username}`)}
-					class="flex flex-col hover:bg-neutral-800 cursor-pointer text-left"
+					class="flex cursor-pointer flex-col text-left hover:bg-neutral-800"
 				>
 					<img
 						src={`https://static-cdn.jtvnw.net/previews-ttv/live_user_${live_now.username}-440x248.jpg`}

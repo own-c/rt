@@ -105,22 +105,19 @@
 	});
 </script>
 
-<div
-	class="relative h-[calc(100vh-2rem)] min-w-full max-w-full border-l-2 border-white/20 text-sm"
-	style="user-select: text;"
->
+<div class="flex h-full flex-col border-l-2 border-white/20 text-sm" style="user-select: text;">
 	<div class="h-8"></div>
 
-	<hr class="border-white/20 w-full" />
+	<hr class="w-full border-white/20" />
 
 	<div
 		data-simplebar
 		bind:this={chatContainer}
-		class="h-[calc(100vh-4rem)] w-full bg-neutral-800 overflow-y-auto"
+		class="h-full w-full overflow-y-auto bg-neutral-800"
 	>
 		{#each messages as message (message.id)}
 			<div
-				class="text-pretty px-1 py-1 {message.f
+				class="px-1 py-1 text-pretty {message.f
 					? 'bg-purple-500/20 hover:bg-purple-400/40'
 					: 'hover:bg-neutral-800'}"
 			>
@@ -130,7 +127,7 @@
 
 				{#each message.m as fragment, index (index)}
 					{#if fragment.t === 0}
-						<span class="text-white break-words">{fragment.c}</span>
+						<span class="break-words">{fragment.c}</span>
 					{:else if fragment.t === 1 && fragment.e}
 						<img
 							loading="lazy"
@@ -148,7 +145,7 @@
 							onclick={openUrlInBrowser}
 							tabindex="-1"
 							role="link"
-							class="mx-2 break-all text-blue-400 hover:text-blue-600 underline underline-blue-400 cursor-pointer"
+							class="underline-blue-400 mx-2 cursor-pointer break-all text-blue-400 underline hover:text-blue-600"
 						>
 							{fragment.c}
 						</span>
@@ -160,7 +157,7 @@
 
 	{#if !autoScroll}
 		<button
-			class="absolute bottom-0 left-1/2 transform -translate-x-1/2 text-white text-center p-1 bg-slate-800/80 hover:bg-slate-600/90 rounded-md shadow-lg z-50 cursor-pointer"
+			class="absolute bottom-0 left-1/2 z-50 -translate-x-1/2 transform cursor-pointer rounded-md bg-slate-800/80 p-1 text-center text-white shadow-lg hover:bg-slate-600/90"
 			onclick={() => {
 				simpleBarInstance.scrollTop = simpleBarInstance.scrollHeight;
 			}}
